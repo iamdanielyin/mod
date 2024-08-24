@@ -79,3 +79,27 @@
 - **Unix Socket 调用** 适合本地进程间的高效通信，在同一台机器上具有良好的性能表现，适用于性能敏感的场景。
 - **HTTP 调用** 是常见的跨语言、跨网络通信方式，适合分布式架构和互联网服务，但延迟和开销较高。
 - **RPC 调用** 结合了高效的序列化和协议支持，适合大规模分布式系统，尤其在微服务架构中广泛使用，支持多种语言和部署方式。
+
+Unix Socket 通信支持多种编程语言开发，主要包括但不限于以下语言：
+
+1. **C/C++**：作为 Unix 系统上最基础的编程语言，C/C++ 对 Unix Socket 的支持非常成熟和广泛。
+
+2. **Python**：Python 提供了对 Unix Socket 的内置支持，使用 `socket` 模块可以轻松实现基于 Unix Socket 的通信。
+
+3. **Golang**：Golang 内置了对 Unix Socket 的支持，通过 `net` 包可以进行 Unix Socket 通信开发。
+
+4. **Java**：Java 提供了对 Unix Socket 的支持，可以通过 `java.net` 包中的 `UnixDomainSocketAddress` 和 `SocketChannel` 等类来进行开发。
+
+5. **Ruby**：Ruby 通过其标准库的 `Socket` 类可以支持 Unix Socket 的通信。
+
+6. **Node.js**：Node.js 可以使用其内置的 `net` 模块来进行 Unix Socket 开发。
+
+7. **PHP**：PHP 提供了 `stream_socket_server` 和 `stream_socket_client` 等函数来支持 Unix Socket。
+
+8. **Perl**：Perl 的 `IO::Socket::UNIX` 模块支持 Unix Socket 通信。
+
+9. **Rust**：Rust 通过 `std::os::unix::net` 提供了对 Unix Socket 的支持。
+
+10. **Shell 脚本（Bash 等）**：虽然不常见，但在 Shell 脚本中也可以通过特殊文件进行简单的 Unix Socket 通信。
+
+这些语言对 Unix Socket 的支持使其能够在同一台机器上的不同进程间实现高效的本地通信。选择哪种语言取决于具体项目的需求、语言的生态和开发团队的技术栈。
