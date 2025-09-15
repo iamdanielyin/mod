@@ -6,7 +6,7 @@ import (
 )
 
 type LoginArgs struct {
-	Username string `validate:"required"`
+	Username string `validate:""`
 	Password string `validate:"required"`
 	Token    string `mod:"from=query"`
 }
@@ -31,11 +31,12 @@ func main() {
 			"username": args.Username,
 			"password": args.Password,
 			"token":    args.Token,
+			"rid":      c.GetRequestID(),
 		}).Info("Received login request")
 
 		// 这里简化验证逻辑，只要有用户名就通过
 		if args.Username == "" {
-			logrus.Error("Username is empty")
+			return mod.ReplyWithDetail(400, "用户名不能为空", "Username field is required for login")
 			return mod.Reply(400, "用户名不能为空")
 		}
 

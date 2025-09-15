@@ -73,15 +73,12 @@ func (app *App) Register(svc Service) error {
 
 	app.Add(fiber.MethodPost, servicePath, func(fc *fiber.Ctx) error {
 		ctx := &Context{Ctx: fc}
-		
+
 		// 身份验证检查
 		if !svc.SkipAuth {
 			token := parseToken(fc, app.tokenKeys)
 			if token == "" {
-				return fc.Status(401).JSON(fiber.Map{
-					"code": 401,
-					"msg":  "Unauthorized",
-				})
+				return fc.Status(401).JSON(NewErrorResponse(ctx, 401, "Unauthorized"))
 			}
 		}
 		
@@ -96,11 +93,9 @@ func (app *App) Register(svc Service) error {
 					"error":   err.Error(),
 					"body":    string(fc.Body()),
 					"query":   fc.Context().QueryArgs().String(),
+					"rid":     ctx.GetRequestID(),
 				}).Error("Parameter parsing failed")
-				return fc.Status(400).JSON(fiber.Map{
-					"code": 400,
-					"msg":  fmt.Sprintf("Parameter parsing error: %v", err),
-				})
+				return fc.Status(400).JSON(NewErrorResponse(ctx, 400, "Parameter parsing error", err.Error()))
 			}
 
 			// 参数验证
@@ -109,11 +104,9 @@ func (app *App) Register(svc Service) error {
 					"service": svc.Name,
 					"error":   err.Error(),
 					"params":  fmt.Sprintf("%+v", in),
+					"rid":     ctx.GetRequestID(),
 				}).Error("Parameter validation failed")
-				return fc.Status(400).JSON(fiber.Map{
-					"code": 400,
-					"msg":  fmt.Sprintf("Parameter validation error: %v", err),
-				})
+				return fc.Status(400).JSON(NewErrorResponse(ctx, 400, "Parameter validation error", err.Error()))
 			}
 		}
 		
@@ -128,29 +121,21 @@ func (app *App) Register(svc Service) error {
 				"service": svc.Name,
 				"error":   err.Error(),
 				"params":  fmt.Sprintf("%+v", in),
+				"rid":     ctx.GetRequestID(),
 			}).Error("Service handler failed")
 
 			if intlErr, ok := err.(*IntlError); ok {
-				return fc.Status(intlErr.code).JSON(fiber.Map{
-					"code": intlErr.code,
-					"msg":  intlErr.msg,
-				})
+				resp := NewErrorResponse(ctx, intlErr.Code(), intlErr.Msg(), intlErr.Detail())
+				return fc.Status(intlErr.Code()).JSON(resp)
 			}
-			return fc.Status(500).JSON(fiber.Map{
-				"code": 500,
-				"msg":  err.Error(),
-			})
+			return fc.Status(500).JSON(NewErrorResponse(ctx, 500, err.Error()))
 		}
-		
+
 		// 返回结果
 		if svc.ReturnRaw {
 			return fc.JSON(out)
 		}
-		return fc.JSON(fiber.Map{
-			"code": 200,
-			"msg":  "success",
-			"data": out,
-		})
+		return fc.JSON(NewSuccessResponse(ctx, out))
 	})
 
 	// 打印服务注册日志
