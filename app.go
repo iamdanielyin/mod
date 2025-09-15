@@ -1,9 +1,13 @@
 package mod
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/sirupsen/logrus"
+	"reflect"
+	"strings"
 )
 
 var validate *validator.Validate
@@ -63,9 +67,103 @@ func (app *App) Register(svc Service) error {
 	if err := validate.Struct(&svc); err != nil {
 		return err
 	}
-	app.Add(fiber.MethodPost, fmt.Sprintf("%s/%s", app.cfg.ServicePrefix, svc.Name), func(fc *fiber.Ctx) error {
-		svc.Handler()
+
+	// 构建服务路径
+	servicePath := fmt.Sprintf("%s/%s", app.cfg.ServicePrefix, svc.Name)
+
+	app.Add(fiber.MethodPost, servicePath, func(fc *fiber.Ctx) error {
+		ctx := &Context{Ctx: fc}
+		
+		// 身份验证检查
+		if !svc.SkipAuth {
+			token := parseToken(fc, app.tokenKeys)
+			if token == "" {
+				return fc.Status(401).JSON(fiber.Map{
+					"code": 401,
+					"msg":  "Unauthorized",
+				})
+			}
+		}
+		
+		// 创建输入参数实例
+		var in, out interface{}
+		if svc.InputType != nil {
+			in = reflect.New(svc.InputType).Interface()
+			// 解析请求参数到结构体
+			if err := app.parseRequestParamsToStruct(fc, in); err != nil {
+				logrus.WithFields(logrus.Fields{
+					"service": svc.Name,
+					"error":   err.Error(),
+					"body":    string(fc.Body()),
+					"query":   fc.Context().QueryArgs().String(),
+				}).Error("Parameter parsing failed")
+				return fc.Status(400).JSON(fiber.Map{
+					"code": 400,
+					"msg":  fmt.Sprintf("Parameter parsing error: %v", err),
+				})
+			}
+
+			// 参数验证
+			if err := validate.Struct(in); err != nil {
+				logrus.WithFields(logrus.Fields{
+					"service": svc.Name,
+					"error":   err.Error(),
+					"params":  fmt.Sprintf("%+v", in),
+				}).Error("Parameter validation failed")
+				return fc.Status(400).JSON(fiber.Map{
+					"code": 400,
+					"msg":  fmt.Sprintf("Parameter validation error: %v", err),
+				})
+			}
+		}
+		
+		// 创建输出参数实例
+		if svc.OutputType != nil {
+			out = reflect.New(svc.OutputType).Interface()
+		}
+		
+		// 调用服务处理函数
+		if err := svc.Handler(ctx, in, out); err != nil {
+			logrus.WithFields(logrus.Fields{
+				"service": svc.Name,
+				"error":   err.Error(),
+				"params":  fmt.Sprintf("%+v", in),
+			}).Error("Service handler failed")
+
+			if intlErr, ok := err.(*IntlError); ok {
+				return fc.Status(intlErr.code).JSON(fiber.Map{
+					"code": intlErr.code,
+					"msg":  intlErr.msg,
+				})
+			}
+			return fc.Status(500).JSON(fiber.Map{
+				"code": 500,
+				"msg":  err.Error(),
+			})
+		}
+		
+		// 返回结果
+		if svc.ReturnRaw {
+			return fc.JSON(out)
+		}
+		return fc.JSON(fiber.Map{
+			"code": 200,
+			"msg":  "success",
+			"data": out,
+		})
 	})
+
+	// 打印服务注册日志
+	logrus.WithFields(logrus.Fields{
+		"service":     svc.Name,
+		"displayName": svc.DisplayName,
+		"method":      "POST",
+		"path":        servicePath,
+		"skipAuth":    svc.SkipAuth,
+		"returnRaw":   svc.ReturnRaw,
+	}).Info("Service registered")
+
+	return nil
 }
 
 func parseToken(kc *fiber.Ctx, keys []string) string {
@@ -94,4 +192,134 @@ func parseToken(kc *fiber.Ctx, keys []string) string {
 		kc.Context().SetUserValue(cacheKey, value)
 	}
 	return value
+}
+
+func (app *App) parseRequestParamsToStruct(fc *fiber.Ctx, in interface{}) error {
+	if in == nil {
+		return nil
+	}
+	
+	rv := reflect.ValueOf(in)
+	if rv.Kind() != reflect.Ptr {
+		return fmt.Errorf("input parameter must be a pointer")
+	}
+	
+	rv = rv.Elem()
+	if rv.Kind() != reflect.Struct {
+		return fmt.Errorf("input parameter must be a pointer to struct")
+	}
+	
+	rt := rv.Type()
+	
+	// 首先解析 JSON body（如果存在）
+	body := fc.Body()
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, in); err != nil {
+			return fmt.Errorf("failed to parse JSON body: %w", err)
+		}
+	}
+	
+	// 然后根据 mod 标签或默认规则解析其他来源的参数
+	for i := 0; i < rv.NumField(); i++ {
+		field := rv.Field(i)
+		fieldType := rt.Field(i)
+		
+		if !field.CanSet() {
+			continue
+		}
+		
+		fieldName := fieldType.Name
+		var value string
+		
+		// 检查 mod 标签
+		modTag := fieldType.Tag.Get("mod")
+		if modTag != "" {
+			value = app.parseFieldValue(fc, modTag, fieldName)
+		} else {
+			// 如果没有 mod 标签，默认从多个来源尝试获取
+			// 优先级：query -> form -> header
+			// 尝试小写字段名
+			lowerFieldName := strings.ToLower(fieldName)
+			if v := fc.Query(lowerFieldName); v != "" {
+				value = v
+			} else if v := fc.FormValue(lowerFieldName); v != "" {
+				value = v
+			} else if v := fc.Get(lowerFieldName); v != "" {
+				value = v
+			} else {
+				// 也尝试原始字段名
+				if v := fc.Query(fieldName); v != "" {
+					value = v
+				} else if v := fc.FormValue(fieldName); v != "" {
+					value = v
+				} else if v := fc.Get(fieldName); v != "" {
+					value = v
+				}
+			}
+		}
+		
+		if value != "" {
+			app.setFieldValue(field, value)
+		}
+	}
+	
+	return nil
+}
+
+func (app *App) parseFieldValue(fc *fiber.Ctx, modTag, fieldName string) string {
+	// 解析 mod 标签，格式如 "from=query" 或 "from=header,name=custom-header"
+	parts := strings.Split(modTag, ",")
+	from := ""
+	name := strings.ToLower(fieldName) // 默认使用小写字段名
+
+	for _, part := range parts {
+		kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
+		if len(kv) == 2 {
+			key := strings.TrimSpace(kv[0])
+			value := strings.TrimSpace(kv[1])
+			switch key {
+			case "from":
+				from = value
+			case "name":
+				name = value
+			}
+		}
+	}
+
+	switch from {
+	case "query":
+		return fc.Query(name)
+	case "header":
+		return fc.Get(name)
+	case "form":
+		return fc.FormValue(name)
+	case "param":
+		return fc.Params(name)
+	default:
+		// 默认尝试从 query 获取
+		return fc.Query(name)
+	}
+}
+
+func (app *App) setFieldValue(field reflect.Value, value string) {
+	switch field.Kind() {
+	case reflect.String:
+		field.SetString(value)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if intVal, err := parseInt(value); err == nil {
+			field.SetInt(intVal)
+		}
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		if uintVal, err := parseUint(value); err == nil {
+			field.SetUint(uintVal)
+		}
+	case reflect.Float32, reflect.Float64:
+		if floatVal, err := parseFloat(value); err == nil {
+			field.SetFloat(floatVal)
+		}
+	case reflect.Bool:
+		if boolVal, err := parseBool(value); err == nil {
+			field.SetBool(boolVal)
+		}
+	}
 }

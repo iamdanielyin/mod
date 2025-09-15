@@ -10,6 +10,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"math/rand"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -133,4 +134,20 @@ func MD5Str(str string) string {
 	h := md5.New()
 	h.Write([]byte(str))
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+func parseInt(value string) (int64, error) {
+	return strconv.ParseInt(value, 10, 64)
+}
+
+func parseUint(value string) (uint64, error) {
+	return strconv.ParseUint(value, 10, 64)
+}
+
+func parseFloat(value string) (float64, error) {
+	return strconv.ParseFloat(value, 64)
+}
+
+func parseBool(value string) (bool, error) {
+	return strconv.ParseBool(value)
 }

@@ -3,6 +3,7 @@ package mod
 import (
 	"fmt"
 	"github.com/gofiber/fiber/v2"
+	"reflect"
 )
 
 type Context struct {
@@ -17,6 +18,10 @@ type Service struct {
 	Description string
 	SkipAuth    bool
 	ReturnRaw   bool
+
+	// 保存输入和输出类型信息
+	InputType  reflect.Type
+	OutputType reflect.Type
 }
 
 type Handler func(ctx *Context, args, reply any) error
@@ -32,6 +37,16 @@ func Handle[I any, O any](handler func(ctx *Context, args *I, reply *O) error) H
 			return fmt.Errorf("invalid reply type")
 		}
 		return handler(ctx, a, r)
+	}
+}
+
+func NewService[I any, O any](name, displayName string, handler func(ctx *Context, args *I, reply *O) error) Service {
+	return Service{
+		Name:        name,
+		DisplayName: displayName,
+		Handler:     Handle(handler),
+		InputType:   reflect.TypeOf((*I)(nil)).Elem(),
+		OutputType:  reflect.TypeOf((*O)(nil)).Elem(),
 	}
 }
 
