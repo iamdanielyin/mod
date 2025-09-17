@@ -2,30 +2,9 @@ package main
 
 import (
 	"github.com/iamdanielyin/mod"
+	"github.com/iamdanielyin/mod/examples/types"
 	"github.com/sirupsen/logrus"
 )
-
-type LoginArgs struct {
-	Username string `validate:""`
-	Password string `validate:"required"`
-	Token    string `mod:"from=query"`
-}
-
-type LoginReply struct {
-	Uid   string
-	Token string
-}
-
-type UserArgs struct {
-	UserID string `validate:"required"`
-	Name   string
-}
-
-type UserReply struct {
-	ID   string
-	Name string
-	Role string
-}
 
 func main() {
 	// 设置 logrus 为更友好的格式
@@ -42,7 +21,7 @@ func main() {
 		DisplayName: "管理员登录",
 		SkipAuth:    true,
 		Description: "管理员登录接口",
-		Handler: mod.MakeHandler(func(c *mod.Context, args *LoginArgs, reply *LoginReply) error {
+		Handler: mod.MakeHandler(func(c *mod.Context, args *types.LoginArgs, reply *types.LoginReply) error {
 			logrus.WithField("rid", c.GetRequestID()).Info("Admin login:", args.Username)
 			reply.Uid = "admin123"
 			reply.Token = "admin_token"
@@ -55,7 +34,7 @@ func main() {
 		DisplayName: "用户登录",
 		SkipAuth:    false,
 		ReturnRaw:   true,
-		Handler: mod.MakeHandler(func(c *mod.Context, args *LoginArgs, reply *LoginReply) error {
+		Handler: mod.MakeHandler(func(c *mod.Context, args *types.LoginArgs, reply *types.LoginReply) error {
 			logrus.WithField("rid", c.GetRequestID()).Info("User login:", args.Username)
 			if args.Username == "" {
 				return mod.ReplyWithDetail(400, "用户名不能为空", "Username field is required")
@@ -70,7 +49,7 @@ func main() {
 		Name:        "user_profile",
 		DisplayName: "用户资料",
 		SkipAuth:    true,
-		Handler: mod.MakeHandler(func(c *mod.Context, args *UserArgs, reply *UserReply) error {
+		Handler: mod.MakeHandler(func(c *mod.Context, args *types.UserArgs, reply *types.UserReply) error {
 			logrus.WithField("rid", c.GetRequestID()).Info("Get user profile:", args.UserID)
 			reply.ID = args.UserID
 			reply.Name = args.Name
@@ -85,7 +64,7 @@ func main() {
 			Name:        "admin_users",
 			DisplayName: "管理用户",
 			SkipAuth:    false,
-			Handler: mod.MakeHandler(func(c *mod.Context, args *UserArgs, reply *UserReply) error {
+			Handler: mod.MakeHandler(func(c *mod.Context, args *types.UserArgs, reply *types.UserReply) error {
 				reply.ID = args.UserID
 				reply.Name = "Admin " + args.Name
 				reply.Role = "admin"
@@ -97,7 +76,7 @@ func main() {
 			DisplayName: "管理设置",
 			SkipAuth:    false,
 			ReturnRaw:   true,
-			Handler: mod.MakeHandler(func(c *mod.Context, args *UserArgs, reply *UserReply) error {
+			Handler: mod.MakeHandler(func(c *mod.Context, args *types.UserArgs, reply *types.UserReply) error {
 				reply.ID = args.UserID
 				reply.Name = "Settings"
 				reply.Role = "admin"

@@ -8,24 +8,27 @@ import (
 	"testing"
 
 	"github.com/iamdanielyin/mod"
+	"github.com/iamdanielyin/mod/examples/types"
 )
 
 func TestServiceRegistration(t *testing.T) {
 	app := mod.New()
 
 	// 创建服务
-	svc := mod.NewService("test_login", "测试登录", func(c *mod.Context, args *Args, reply *Reply) error {
-		if args.Username == "" || args.Password == "" {
-			return mod.Reply(400, "用户名和密码不能为空")
-		}
-		
-		reply.Uid = "user123"
-		reply.Token = "token456"
-		return nil
-	})
-	svc.SkipAuth = true
+	app.Register(mod.Service{
+		Name:        "test_login",
+		DisplayName: "测试登录",
+		SkipAuth:    true,
+		Handler: mod.MakeHandler(func(c *mod.Context, args *types.LoginArgs, reply *types.LoginReply) error {
+			if args.Username == "" || args.Password == "" {
+				return mod.Reply(400, "用户名和密码不能为空")
+			}
 
-	app.Register(svc)
+			reply.Uid = "user123"
+			reply.Token = "token456"
+			return nil
+		}),
+	})
 
 	// 测试 JSON body 请求
 	t.Run("JSON body request", func(t *testing.T) {
