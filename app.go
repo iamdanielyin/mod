@@ -81,7 +81,7 @@ func (app *App) Register(svc Service) error {
 				return fc.Status(401).JSON(NewErrorResponse(ctx, 401, "Unauthorized"))
 			}
 		}
-		
+
 		// 创建输入参数实例
 		var in, out interface{}
 		if svc.Handler.InputType != nil {
@@ -109,12 +109,12 @@ func (app *App) Register(svc Service) error {
 				return fc.Status(400).JSON(NewErrorResponse(ctx, 400, "Parameter validation error", err.Error()))
 			}
 		}
-		
+
 		// 创建输出参数实例
 		if svc.Handler.OutputType != nil {
 			out = reflect.New(svc.Handler.OutputType).Interface()
 		}
-		
+
 		// 调用服务处理函数
 		if err := svc.Handler.Func(ctx, in, out); err != nil {
 			logrus.WithFields(logrus.Fields{
@@ -183,19 +183,19 @@ func (app *App) parseRequestParamsToStruct(fc *fiber.Ctx, in interface{}) error 
 	if in == nil {
 		return nil
 	}
-	
+
 	rv := reflect.ValueOf(in)
 	if rv.Kind() != reflect.Ptr {
 		return fmt.Errorf("input parameter must be a pointer")
 	}
-	
+
 	rv = rv.Elem()
 	if rv.Kind() != reflect.Struct {
 		return fmt.Errorf("input parameter must be a pointer to struct")
 	}
-	
+
 	rt := rv.Type()
-	
+
 	// 首先解析 JSON body（如果存在）
 	body := fc.Body()
 	if len(body) > 0 {
@@ -203,19 +203,19 @@ func (app *App) parseRequestParamsToStruct(fc *fiber.Ctx, in interface{}) error 
 			return fmt.Errorf("failed to parse JSON body: %w", err)
 		}
 	}
-	
+
 	// 然后根据 mod 标签或默认规则解析其他来源的参数
 	for i := 0; i < rv.NumField(); i++ {
 		field := rv.Field(i)
 		fieldType := rt.Field(i)
-		
+
 		if !field.CanSet() {
 			continue
 		}
-		
+
 		fieldName := fieldType.Name
 		var value string
-		
+
 		// 检查 mod 标签
 		modTag := fieldType.Tag.Get("mod")
 		if modTag != "" {
@@ -242,18 +242,18 @@ func (app *App) parseRequestParamsToStruct(fc *fiber.Ctx, in interface{}) error 
 				}
 			}
 		}
-		
+
 		if value != "" {
 			app.setFieldValue(field, value)
 		}
 	}
-	
+
 	return nil
 }
 
 func (app *App) parseFieldValue(fc *fiber.Ctx, modTag, fieldName string) string {
-	// 解析 mod 标签，格式如 "from=query" 或 "from=header,name=custom-header"
-	parts := strings.Split(modTag, ",")
+	// 解析 mod 标签，格式如 "from=query" 或 "from=header;name=custom-header"
+	parts := strings.Split(modTag, ";")
 	from := ""
 	name := strings.ToLower(fieldName) // 默认使用小写字段名
 
