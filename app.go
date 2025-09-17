@@ -84,8 +84,8 @@ func (app *App) Register(svc Service) error {
 		
 		// 创建输入参数实例
 		var in, out interface{}
-		if svc.InputType != nil {
-			in = reflect.New(svc.InputType).Interface()
+		if svc.Handler.InputType != nil {
+			in = reflect.New(svc.Handler.InputType).Interface()
 			// 解析请求参数到结构体
 			if err := app.parseRequestParamsToStruct(fc, in); err != nil {
 				logrus.WithFields(logrus.Fields{
@@ -111,12 +111,12 @@ func (app *App) Register(svc Service) error {
 		}
 		
 		// 创建输出参数实例
-		if svc.OutputType != nil {
-			out = reflect.New(svc.OutputType).Interface()
+		if svc.Handler.OutputType != nil {
+			out = reflect.New(svc.Handler.OutputType).Interface()
 		}
 		
 		// 调用服务处理函数
-		if err := svc.Handler(ctx, in, out); err != nil {
+		if err := svc.Handler.Func(ctx, in, out); err != nil {
 			logrus.WithFields(logrus.Fields{
 				"service": svc.Name,
 				"error":   err.Error(),

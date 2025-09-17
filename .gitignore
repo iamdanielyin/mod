@@ -24,4 +24,9 @@ go.work.sum
 # env file
 .env
 
-.idea
+.idea/
+unpackage/
+node_modules
+yarn.lock
+package-lock.json
+pnpm-lock.yaml
