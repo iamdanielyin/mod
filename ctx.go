@@ -95,6 +95,8 @@ type Service struct {
 	Description string
 	SkipAuth    bool
 	ReturnRaw   bool
+	Group       string // 在文档中的分组
+	Sort        int    // 在文档中的排序值，从小到大排列
 }
 
 // MakeHandler 创建带类型信息的 Handler
