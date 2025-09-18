@@ -7,12 +7,6 @@ import (
 )
 
 func main() {
-	// 设置 logrus 为更友好的格式
-	logrus.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp: true,
-		ForceColors:   true,
-	})
-
 	app := mod.New()
 
 	// 统一的结构体注册方式
@@ -89,6 +83,5 @@ func main() {
 		app.Register(svc)
 	}
 
-	logrus.Info("Starting server on :8080")
 	app.Run(":8080")
 }

@@ -20,6 +20,7 @@ type Config struct {
 	fiber.Config
 	ServicePrefix string
 	TokenKey      string
+	Logger        *logrus.Logger
 }
 
 func New(config ...Config) *App {
@@ -36,10 +37,18 @@ func New(config ...Config) *App {
 	if cfg.TokenKey == "" {
 		cfg.TokenKey = "mod-key,mod-token"
 	}
+	if cfg.Logger == nil {
+		cfg.Logger = logrus.StandardLogger()
+		cfg.Logger.SetFormatter(&logrus.TextFormatter{
+			FullTimestamp: true,
+			ForceColors:   true,
+		})
+	}
 
 	app := &App{
 		App:       fiber.New(cfg.Config),
 		cfg:       cfg,
+		logger:    cfg.Logger,
 		tokenKeys: SplitAndTrimSpace(cfg.TokenKey, ","),
 	}
 	return app
@@ -47,6 +56,7 @@ func New(config ...Config) *App {
 
 type App struct {
 	*fiber.App
+	logger    *logrus.Logger
 	cfg       Config
 	tokenKeys []string
 }
@@ -58,6 +68,7 @@ func (app *App) Run(addr ...string) {
 	} else {
 		a = ":8080"
 	}
+	app.logger.Info("Starting server on " + a)
 	if err := app.Listen(a); err != nil {
 		panic(err)
 	}
@@ -88,7 +99,7 @@ func (app *App) Register(svc Service) error {
 			in = reflect.New(svc.Handler.InputType).Interface()
 			// 解析请求参数到结构体
 			if err := app.parseRequestParamsToStruct(fc, in); err != nil {
-				logrus.WithFields(logrus.Fields{
+				app.logger.WithFields(logrus.Fields{
 					"service": svc.Name,
 					"error":   err.Error(),
 					"body":    string(fc.Body()),
@@ -100,7 +111,7 @@ func (app *App) Register(svc Service) error {
 
 			// 参数验证
 			if err := validate.Struct(in); err != nil {
-				logrus.WithFields(logrus.Fields{
+				app.logger.WithFields(logrus.Fields{
 					"service": svc.Name,
 					"error":   err.Error(),
 					"params":  fmt.Sprintf("%+v", in),
@@ -117,7 +128,7 @@ func (app *App) Register(svc Service) error {
 
 		// 调用服务处理函数
 		if err := svc.Handler.Func(ctx, in, out); err != nil {
-			logrus.WithFields(logrus.Fields{
+			app.logger.WithFields(logrus.Fields{
 				"service": svc.Name,
 				"error":   err.Error(),
 				"params":  fmt.Sprintf("%+v", in),
@@ -139,7 +150,7 @@ func (app *App) Register(svc Service) error {
 	})
 
 	// 打印服务注册日志
-	logrus.WithFields(logrus.Fields{
+	app.logger.WithFields(logrus.Fields{
 		"service":     svc.Name,
 		"displayName": svc.DisplayName,
 		"method":      "POST",

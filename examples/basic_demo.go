@@ -3,16 +3,9 @@ package main
 import (
 	"github.com/iamdanielyin/mod"
 	"github.com/iamdanielyin/mod/examples/types"
-	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	// 设置 logrus 为更友好的格式
-	logrus.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp: true,
-		ForceColors:   true,
-	})
-
 	app := mod.New()
 
 	// 展示基本的服务注册
@@ -57,6 +50,5 @@ func main() {
 		}),
 	})
 
-	logrus.Info("Starting demo server on :3000")
 	app.Run(":3000")
 }
