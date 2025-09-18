@@ -83,7 +83,7 @@ func (app *App) Register(svc Service) error {
 	servicePath := fmt.Sprintf("%s/%s", app.cfg.ServicePrefix, svc.Name)
 
 	app.Add(fiber.MethodPost, servicePath, func(fc *fiber.Ctx) error {
-		ctx := &Context{Ctx: fc}
+		ctx := &Context{Ctx: fc, logger: app.logger}
 
 		// 身份验证检查
 		if !svc.SkipAuth {

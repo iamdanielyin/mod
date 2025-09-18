@@ -3,7 +3,6 @@ package main
 import (
 	"github.com/iamdanielyin/mod"
 	"github.com/iamdanielyin/mod/examples/types"
-	"github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -16,7 +15,7 @@ func main() {
 		SkipAuth:    true,
 		Description: "管理员登录接口",
 		Handler: mod.MakeHandler(func(c *mod.Context, args *types.LoginArgs, reply *types.LoginReply) error {
-			logrus.WithField("rid", c.GetRequestID()).Info("Admin login:", args.Username)
+			c.Info("Admin login:", args.Username)
 			reply.Uid = "admin123"
 			reply.Token = "admin_token"
 			return nil
@@ -29,7 +28,7 @@ func main() {
 		SkipAuth:    false,
 		ReturnRaw:   true,
 		Handler: mod.MakeHandler(func(c *mod.Context, args *types.LoginArgs, reply *types.LoginReply) error {
-			logrus.WithField("rid", c.GetRequestID()).Info("User login:", args.Username)
+			c.Info("User login:", args.Username)
 			if args.Username == "" {
 				return mod.ReplyWithDetail(400, "用户名不能为空", "Username field is required")
 			}
@@ -44,7 +43,7 @@ func main() {
 		DisplayName: "用户资料",
 		SkipAuth:    true,
 		Handler: mod.MakeHandler(func(c *mod.Context, args *types.UserArgs, reply *types.UserReply) error {
-			logrus.WithField("rid", c.GetRequestID()).Info("Get user profile:", args.UserID)
+			c.Info("Get user profile:", args.UserID)
 			reply.ID = args.UserID
 			reply.Name = args.Name
 			reply.Role = "user"

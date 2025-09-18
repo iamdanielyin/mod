@@ -3,12 +3,14 @@ package mod
 import (
 	"fmt"
 	"github.com/gofiber/fiber/v2"
+	"github.com/sirupsen/logrus"
 	"reflect"
 )
 
 type Context struct {
 	*fiber.Ctx
 	RequestID string
+	logger    *logrus.Logger
 }
 
 func (c *Context) GetRequestID() string {
@@ -16,6 +18,66 @@ func (c *Context) GetRequestID() string {
 		c.RequestID = NextSnowflakeStringID()
 	}
 	return c.RequestID
+}
+
+// Logger methods with automatic rid inclusion
+func (c *Context) Debug(args ...interface{}) {
+	if c.logger != nil {
+		c.logger.WithField("rid", c.GetRequestID()).Debug(args...)
+	}
+}
+
+func (c *Context) Debugf(format string, args ...interface{}) {
+	if c.logger != nil {
+		c.logger.WithField("rid", c.GetRequestID()).Debugf(format, args...)
+	}
+}
+
+func (c *Context) Info(args ...interface{}) {
+	if c.logger != nil {
+		c.logger.WithField("rid", c.GetRequestID()).Info(args...)
+	}
+}
+
+func (c *Context) Infof(format string, args ...interface{}) {
+	if c.logger != nil {
+		c.logger.WithField("rid", c.GetRequestID()).Infof(format, args...)
+	}
+}
+
+func (c *Context) Warn(args ...interface{}) {
+	if c.logger != nil {
+		c.logger.WithField("rid", c.GetRequestID()).Warn(args...)
+	}
+}
+
+func (c *Context) Warnf(format string, args ...interface{}) {
+	if c.logger != nil {
+		c.logger.WithField("rid", c.GetRequestID()).Warnf(format, args...)
+	}
+}
+
+func (c *Context) Error(args ...interface{}) {
+	if c.logger != nil {
+		c.logger.WithField("rid", c.GetRequestID()).Error(args...)
+	}
+}
+
+func (c *Context) Errorf(format string, args ...interface{}) {
+	if c.logger != nil {
+		c.logger.WithField("rid", c.GetRequestID()).Errorf(format, args...)
+	}
+}
+
+func (c *Context) WithFields(fields logrus.Fields) *logrus.Entry {
+	if c.logger != nil {
+		if fields == nil {
+			fields = logrus.Fields{}
+		}
+		fields["rid"] = c.GetRequestID()
+		return c.logger.WithFields(fields)
+	}
+	return nil
 }
 
 // Handler 结构体，可以存储类型信息
