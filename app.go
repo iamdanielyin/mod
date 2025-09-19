@@ -520,16 +520,8 @@ func (app *App) parseStructFieldsRecursive(t reflect.Type, level int, parentPath
 			if elemType.Kind() == reflect.Struct && !app.isBasicStructType(elemType) {
 				docField.Type = "array<object>"
 				docField.ArrayItemType = "object"
-				// 为数组元素创建一个虚拟字段来表示数组项的结构
-				arrayItemField := DocField{
-					Name:     "[item]",
-					Type:     "object",
-					Level:    level + 1,
-					Parent:   currentPath,
-					IsObject: true,
-					Children: app.parseStructFieldsRecursive(elemType, level+2, currentPath+"[item]"),
-				}
-				docField.Children = []DocField{arrayItemField}
+				// 直接将数组元素的字段作为子字段，不增加 [item] 层级
+				docField.Children = app.parseStructFieldsRecursive(elemType, level+1, currentPath)
 			} else {
 				elemTypeName := app.getFieldTypeString(elemType)
 				docField.Type = "array<" + elemTypeName + ">"
