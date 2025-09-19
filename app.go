@@ -1250,11 +1250,18 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
         // 展开/折叠嵌套字段
         function toggleNested(button) {
             const row = button.closest('tr');
+            const currentLevel = parseInt(row.className.match(/level-(\d+)/)?.[1] || '0');
             const nextRows = [];
             let currentRow = row.nextElementSibling;
 
+            // 只收集直接子级行（下一级别）
             while (currentRow && currentRow.classList.contains('nested-row')) {
-                nextRows.push(currentRow);
+                const rowLevel = parseInt(currentRow.className.match(/level-(\d+)/)?.[1] || '0');
+                if (rowLevel === currentLevel + 1) {
+                    nextRows.push(currentRow);
+                } else if (rowLevel <= currentLevel) {
+                    break;
+                }
                 currentRow = currentRow.nextElementSibling;
             }
 
@@ -1262,8 +1269,39 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
             button.textContent = isExpanded ? '+' : '−';
 
             nextRows.forEach(r => {
-                r.style.display = isExpanded ? 'none' : '';
+                if (isExpanded) {
+                    // 折叠时，隐藏直接子级并递归折叠其所有子级
+                    r.style.display = 'none';
+                    collapseAllChildren(r);
+                } else {
+                    // 展开时，只显示直接子级
+                    r.style.display = '';
+                }
             });
+        }
+
+        // 递归折叠所有子级
+        function collapseAllChildren(parentRow) {
+            const parentLevel = parseInt(parentRow.className.match(/level-(\d+)/)?.[1] || '0');
+            let currentRow = parentRow.nextElementSibling;
+
+            while (currentRow && currentRow.classList.contains('nested-row')) {
+                const rowLevel = parseInt(currentRow.className.match(/level-(\d+)/)?.[1] || '0');
+                if (rowLevel <= parentLevel) {
+                    break;
+                }
+
+                // 隐藏所有更深层级的行
+                currentRow.style.display = 'none';
+
+                // 将展开按钮重置为+状态
+                const expandBtn = currentRow.querySelector('.expand-btn');
+                if (expandBtn) {
+                    expandBtn.textContent = '+';
+                }
+
+                currentRow = currentRow.nextElementSibling;
+            }
         }
     </script>
 
