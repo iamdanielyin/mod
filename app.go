@@ -1018,10 +1018,18 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
             padding: 0 4px;
             font-size: 12px;
             margin-right: 4px;
+            width: 16px;
+            text-align: center;
         }
 
         .expand-btn:hover {
             background: #f0f8ff;
+        }
+
+        .expand-btn-placeholder {
+            width: 16px;
+            margin-right: 4px;
+            display: inline-block;
         }
 
         .nested-table {
@@ -1312,6 +1320,8 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
             <div class="field-name-box" style="margin-left: {{mul .Level 20}}px;">
                 {{if .Children}}
                 <button class="expand-btn" onclick="toggleNested(this)">+</button>
+                {{else}}
+                <span class="expand-btn-placeholder"></span>
                 {{end}}
                 <span class="field-name">{{.Name}}</span>
                 {{if .Parent}}<span class="field-path">({{.Parent}})</span>{{end}}
@@ -1338,6 +1348,8 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
             <div class="field-name-box" style="margin-left: {{mul .Level 20}}px;">
                 {{if .Children}}
                 <button class="expand-btn" onclick="toggleNested(this)">+</button>
+                {{else}}
+                <span class="expand-btn-placeholder"></span>
                 {{end}}
                 <span class="field-name">{{.Name}}</span>
                 {{if .Parent}}<span class="field-path">({{.Parent}})</span>{{end}}
