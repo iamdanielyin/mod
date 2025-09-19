@@ -336,12 +336,18 @@ func (app *App) setFieldValue(field reflect.Value, value string) {
 
 // 文档生成相关结构体
 type DocField struct {
-	Name        string
-	Type        string
-	Description string
-	Required    bool
-	From        string // query, header, form, param
-	Tag         string
+	Name          string
+	Type          string
+	Description   string
+	Required      bool
+	From          string // query, header, form, param
+	Tag           string
+	Level         int        // 嵌套层级，0为顶层
+	Parent        string     // 父字段名
+	Children      []DocField // 子字段（用于对象类型）
+	IsObject      bool       // 是否为对象类型
+	IsArray       bool       // 是否为数组类型
+	ArrayItemType string     // 数组元素类型
 }
 
 type DocService struct {
@@ -426,6 +432,11 @@ func (app *App) groupAndSortServices() []DocGroup {
 
 // 解析结构体字段
 func (app *App) parseStructFields(t reflect.Type) []DocField {
+	return app.parseStructFieldsRecursive(t, 0, "")
+}
+
+// 递归解析结构体字段
+func (app *App) parseStructFieldsRecursive(t reflect.Type, level int, parentPath string) []DocField {
 	var fields []DocField
 
 	if t.Kind() == reflect.Ptr {
@@ -443,8 +454,12 @@ func (app *App) parseStructFields(t reflect.Type) []DocField {
 		}
 
 		docField := DocField{
-			Name: field.Name,
-			Type: app.getFieldTypeString(field.Type),
+			Name:     field.Name,
+			Type:     app.getFieldTypeString(field.Type),
+			Level:    level,
+			Parent:   parentPath,
+			IsObject: false,
+			IsArray:  false,
 		}
 
 		// 解析标签
@@ -472,10 +487,79 @@ func (app *App) parseStructFields(t reflect.Type) []DocField {
 			docField.Description = descTag
 		}
 
+		// 分析字段类型，处理嵌套结构
+		fieldType := field.Type
+		if fieldType.Kind() == reflect.Ptr {
+			fieldType = fieldType.Elem()
+		}
+
+		currentPath := docField.Name
+		if parentPath != "" {
+			currentPath = parentPath + "." + docField.Name
+		}
+
+		switch fieldType.Kind() {
+		case reflect.Struct:
+			// 检查是否为基本类型的结构体（如time.Time等）
+			if app.isBasicStructType(fieldType) {
+				docField.Type = fieldType.Name()
+			} else {
+				docField.IsObject = true
+				docField.Type = "object"
+				// 递归解析子字段
+				docField.Children = app.parseStructFieldsRecursive(fieldType, level+1, currentPath)
+			}
+
+		case reflect.Slice, reflect.Array:
+			docField.IsArray = true
+			elemType := fieldType.Elem()
+			if elemType.Kind() == reflect.Ptr {
+				elemType = elemType.Elem()
+			}
+
+			if elemType.Kind() == reflect.Struct && !app.isBasicStructType(elemType) {
+				docField.Type = "array<object>"
+				docField.ArrayItemType = "object"
+				// 为数组元素创建一个虚拟字段来表示数组项的结构
+				arrayItemField := DocField{
+					Name:     "[item]",
+					Type:     "object",
+					Level:    level + 1,
+					Parent:   currentPath,
+					IsObject: true,
+					Children: app.parseStructFieldsRecursive(elemType, level+2, currentPath+"[item]"),
+				}
+				docField.Children = []DocField{arrayItemField}
+			} else {
+				elemTypeName := app.getFieldTypeString(elemType)
+				docField.Type = "array<" + elemTypeName + ">"
+				docField.ArrayItemType = elemTypeName
+			}
+
+		case reflect.Map:
+			keyType := app.getFieldTypeString(fieldType.Key())
+			valueType := fieldType.Elem()
+			if valueType.Kind() == reflect.Interface && valueType.String() == "interface {}" {
+				docField.Type = "map<" + keyType + ", any>"
+			} else {
+				valueTypeName := app.getFieldTypeString(valueType)
+				docField.Type = "map<" + keyType + ", " + valueTypeName + ">"
+			}
+		}
+
 		fields = append(fields, docField)
 	}
 
 	return fields
+}
+
+// 检查是否为基本类型的结构体
+func (app *App) isBasicStructType(t reflect.Type) bool {
+	basicStructs := map[string]bool{
+		"time.Time": true,
+		"Time":      true,
+	}
+	return basicStructs[t.String()] || basicStructs[t.Name()]
 }
 
 // 获取字段类型字符串
@@ -909,6 +993,67 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
             border: 1px dashed #d9d9d9;
         }
 
+        .nested-field {
+            border-left: 2px solid #e8f4ff;
+            margin-left: 10px;
+            padding-left: 10px;
+        }
+
+        .nested-field.level-1 {
+            border-left-color: #bae7ff;
+        }
+
+        .nested-field.level-2 {
+            border-left-color: #91d5ff;
+        }
+
+        .nested-field.level-3 {
+            border-left-color: #69c0ff;
+        }
+
+        .field-path {
+            color: rgba(0, 0, 0, 0.45);
+            font-size: 11px;
+            margin-left: 8px;
+            font-style: italic;
+        }
+
+        .expand-btn {
+            border: none;
+            background: none;
+            color: #1890ff;
+            cursor: pointer;
+            padding: 0 4px;
+            font-size: 12px;
+            margin-right: 4px;
+        }
+
+        .expand-btn:hover {
+            background: #f0f8ff;
+        }
+
+        .nested-table {
+            margin-top: 8px;
+            border: 1px solid #f0f0f0;
+            border-radius: 4px;
+        }
+
+        .nested-table .params-table {
+            margin: 0;
+            border: none;
+        }
+
+        .nested-table .params-table th {
+            background: #f8f9fa;
+            font-size: 12px;
+            padding: 6px 8px;
+        }
+
+        .nested-table .params-table td {
+            font-size: 12px;
+            padding: 6px 8px;
+        }
+
         @media (max-width: 768px) {
             .container {
                 flex-direction: column;
@@ -998,22 +1143,7 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
                             </thead>
                             <tbody>
                                 {{range .InputFields}}
-                                <tr>
-                                    <td>
-                                        <div class="field-name-box">
-                                            <span class="field-name">{{.Name}}</span>
-                                            <button class="copy-btn copy-btn-field" onclick="copyToClipboard('{{.Name}}', this)" title="复制参数名">
-                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                                                    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </td>
-                                    <td><span class="field-type">{{.Type}}</span></td>
-                                    <td><span class="from-tag">{{.From}}</span></td>
-                                    <td><span class="{{if .Required}}required{{else}}not-required{{end}}">{{if .Required}}是{{else}}否{{end}}</span></td>
-                                    <td>{{if .Description}}{{.Description}}{{else}}-{{end}}</td>
-                                </tr>
+                                {{template "renderField" .}}
                                 {{end}}
                             </tbody>
                         </table>
@@ -1038,20 +1168,7 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
                             </thead>
                             <tbody>
                                 {{range .OutputFields}}
-                                <tr>
-                                    <td>
-                                        <div class="field-name-box">
-                                            <span class="field-name">{{.Name}}</span>
-                                            <button class="copy-btn copy-btn-field" onclick="copyToClipboard('{{.Name}}', this)" title="复制参数名">
-                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                                                    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </td>
-                                    <td><span class="field-type">{{.Type}}</span></td>
-                                    <td>{{if .Description}}{{.Description}}{{else}}-{{end}}</td>
-                                </tr>
+                                {{template "renderOutputField" .}}
                                 {{end}}
                             </tbody>
                         </table>
@@ -1137,11 +1254,88 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
 
         window.addEventListener('scroll', updateActiveService);
         document.addEventListener('DOMContentLoaded', updateActiveService);
+
+        // 展开/折叠嵌套字段
+        function toggleNested(button) {
+            const row = button.closest('tr');
+            const nextRows = [];
+            let currentRow = row.nextElementSibling;
+
+            while (currentRow && currentRow.classList.contains('nested-row')) {
+                nextRows.push(currentRow);
+                currentRow = currentRow.nextElementSibling;
+            }
+
+            const isExpanded = button.textContent === '−';
+            button.textContent = isExpanded ? '+' : '−';
+
+            nextRows.forEach(r => {
+                r.style.display = isExpanded ? 'none' : '';
+            });
+        }
     </script>
+
+    <!-- 模板定义 -->
+    {{define "renderField"}}
+    <tr {{if gt .Level 0}}class="nested-row nested-field level-{{.Level}}" style="display: none;"{{end}}>
+        <td>
+            <div class="field-name-box" style="margin-left: {{mul .Level 20}}px;">
+                {{if .Children}}
+                <button class="expand-btn" onclick="toggleNested(this)">+</button>
+                {{end}}
+                <span class="field-name">{{.Name}}</span>
+                {{if .Parent}}<span class="field-path">({{.Parent}})</span>{{end}}
+                <button class="copy-btn copy-btn-field" onclick="copyToClipboard('{{.Name}}', this)" title="复制参数名">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                    </svg>
+                </button>
+            </div>
+        </td>
+        <td><span class="field-type">{{.Type}}</span></td>
+        <td><span class="from-tag">{{.From}}</span></td>
+        <td><span class="{{if .Required}}required{{else}}not-required{{end}}">{{if .Required}}是{{else}}否{{end}}</span></td>
+        <td>{{if .Description}}{{.Description}}{{else}}-{{end}}</td>
+    </tr>
+    {{range .Children}}
+    {{template "renderField" .}}
+    {{end}}
+    {{end}}
+
+    {{define "renderOutputField"}}
+    <tr {{if gt .Level 0}}class="nested-row nested-field level-{{.Level}}" style="display: none;"{{end}}>
+        <td>
+            <div class="field-name-box" style="margin-left: {{mul .Level 20}}px;">
+                {{if .Children}}
+                <button class="expand-btn" onclick="toggleNested(this)">+</button>
+                {{end}}
+                <span class="field-name">{{.Name}}</span>
+                {{if .Parent}}<span class="field-path">({{.Parent}})</span>{{end}}
+                <button class="copy-btn copy-btn-field" onclick="copyToClipboard('{{.Name}}', this)" title="复制参数名">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                    </svg>
+                </button>
+            </div>
+        </td>
+        <td><span class="field-type">{{.Type}}</span></td>
+        <td>{{if .Description}}{{.Description}}{{else}}-{{end}}</td>
+    </tr>
+    {{range .Children}}
+    {{template "renderOutputField" .}}
+    {{end}}
+    {{end}}
+
 </body>
 </html>`
 
-	t := template.Must(template.New("docs").Parse(tmpl))
+	// 创建模板函数映射
+	funcMap := template.FuncMap{
+		"mul": func(a, b int) int { return a * b },
+		"gt":  func(a, b int) bool { return a > b },
+	}
+
+	t := template.Must(template.New("docs").Funcs(funcMap).Parse(tmpl))
 	var buf strings.Builder
 	t.Execute(&buf, groups)
 	return buf.String()
