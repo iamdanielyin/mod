@@ -20,6 +20,10 @@ func init() {
 
 type Config struct {
 	fiber.Config
+	Name        string
+	DisplayName string
+	Description string
+
 	ServicePrefix string
 	TokenKey      string
 	Logger        *logrus.Logger
@@ -643,11 +647,65 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
             font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
             font-size: 12px;
             background: rgba(255, 255, 255, 0.2);
-            padding: 4px 8px;
             border-radius: 4px;
-            display: inline-block;
+            display: flex;
+            align-items: center;
             margin-bottom: 12px;
             border: 1px solid rgba(255, 255, 255, 0.3);
+            max-width: fit-content;
+            overflow: hidden;
+        }
+
+        .path-text {
+            padding: 4px 8px;
+            flex: 1;
+        }
+
+        .copy-btn-path {
+            padding: 4px 8px;
+            margin: 0;
+            border: none;
+            border-left: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 0;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .copy-btn-path:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .copy-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            padding: 4px;
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            color: #fff;
+        }
+
+        .copy-btn.copied {
+            background: #52c41a;
+            color: #fff;
+        }
+
+        .copy-btn-small {
+            padding: 2px;
+            margin-left: 6px;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .api-meta {
@@ -655,12 +713,6 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
             gap: 24px;
             flex-wrap: wrap;
             font-size: 12px;
-        }
-
-        .meta-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
         }
 
         .meta-label {
@@ -676,14 +728,60 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
-        .auth-required-header {
-            background: #ff4d4f;
-            color: #fff;
+        .auth-status-badge {
+            font-weight: 500;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            border: 1px solid;
         }
 
-        .auth-not-required-header {
-            background: #52c41a;
-            color: #fff;
+        .auth-required {
+            background: #fff2f0;
+            color: #ff4d4f;
+            border-color: #ffccc7;
+        }
+
+        .auth-not-required {
+            background: #f6ffed;
+            color: #52c41a;
+            border-color: #b7eb8f;
+        }
+
+        .meta-value-box {
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            overflow: hidden;
+        }
+
+        .meta-value-text {
+            font-weight: 500;
+            padding: 2px 6px;
+            flex: 1;
+        }
+
+        .copy-btn-inline {
+            padding: 2px 6px;
+            margin: 0;
+            border: none;
+            border-left: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 0;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .copy-btn-inline:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .api-description {
+            margin-top: 12px;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.85);
+            line-height: 1.5;
+            font-style: italic;
         }
 
         .api-body {
@@ -714,7 +812,7 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
 
         .params-table th,
         .params-table td {
-            padding: 12px 16px;
+            padding: 8px 12px;
             text-align: left;
             border-bottom: 1px solid #f0f0f0;
         }
@@ -723,12 +821,46 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
             background: #fafafa;
             font-weight: 500;
             color: rgba(0, 0, 0, 0.85);
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .params-table td {
-            font-size: 14px;
+            font-size: 13px;
             color: rgba(0, 0, 0, 0.85);
+        }
+
+        .field-name-box {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .field-name {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+            font-weight: 600;
+            color: #1890ff;
+        }
+
+        .copy-btn-field {
+            padding: 2px;
+            margin: 0;
+            border: 1px solid #d9d9d9;
+            border-radius: 2px;
+            background: #fafafa;
+            color: rgba(0, 0, 0, 0.45);
+            flex-shrink: 0;
+        }
+
+        .copy-btn-field:hover {
+            background: #f0f0f0;
+            color: #1890ff;
+            border-color: #40a9ff;
+        }
+
+        .copy-btn-field.copied {
+            background: #52c41a;
+            color: #fff;
+            border-color: #52c41a;
         }
 
         .params-table tr:last-child td {
@@ -737,12 +869,6 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
 
         .params-table tr:hover {
             background: #fafafa;
-        }
-
-        .field-name {
-            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
-            font-weight: 600;
-            color: #1890ff;
         }
 
         .field-type {
@@ -826,25 +952,34 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
             <div class="api-section" id="service-{{.Name}}">
                 <div class="api-header">
                     <div class="api-title">{{.DisplayName}}</div>
-                    <div class="api-path">POST {{.ServicePath}}</div>
+                    <div class="api-path">
+                        <span class="path-text">POST {{.ServicePath}}</span>
+                        <button class="copy-btn copy-btn-path" onclick="copyToClipboard('{{.ServicePath}}', this)" title="复制接口地址">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                            </svg>
+                        </button>
+                    </div>
                     <div class="api-meta">
                         <div class="meta-item">
                             <span class="meta-label">服务名称:</span>
-                            <span class="meta-value">{{.Name}}</span>
+                            <div class="meta-value-box">
+                                <span class="meta-value-text">{{.Name}}</span>
+                                <button class="copy-btn copy-btn-inline" onclick="copyToClipboard('{{.Name}}', this)" title="复制服务名称">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                         <div class="meta-item">
                             <span class="meta-label">认证:</span>
-                            <span class="meta-value {{if .SkipAuth}}auth-not-required-header{{else}}auth-required-header{{end}}">
-                                {{if .SkipAuth}}不需要{{else}}需要{{end}}
-                            </span>
+                            <span class="meta-value auth-status-badge {{if .SkipAuth}}auth-not-required{{else}}auth-required{{end}}">{{if .SkipAuth}}不需要{{else}}需要{{end}}</span>
                         </div>
-                        {{if .Description}}
-                        <div class="meta-item">
-                            <span class="meta-label">描述:</span>
-                            <span class="meta-value">{{.Description}}</span>
-                        </div>
-                        {{end}}
                     </div>
+                    {{if .Description}}
+                    <div class="api-description">{{.Description}}</div>
+                    {{end}}
                 </div>
                 <div class="api-body">
 
@@ -864,11 +999,20 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
                             <tbody>
                                 {{range .InputFields}}
                                 <tr>
-                                    <td><span class="field-name">{{.Name}}</span></td>
+                                    <td>
+                                        <div class="field-name-box">
+                                            <span class="field-name">{{.Name}}</span>
+                                            <button class="copy-btn copy-btn-field" onclick="copyToClipboard('{{.Name}}', this)" title="复制参数名">
+                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </td>
                                     <td><span class="field-type">{{.Type}}</span></td>
                                     <td><span class="from-tag">{{.From}}</span></td>
                                     <td><span class="{{if .Required}}required{{else}}not-required{{end}}">{{if .Required}}是{{else}}否{{end}}</span></td>
-                                    <td>{{.Description}}</td>
+                                    <td>{{if .Description}}{{.Description}}{{else}}-{{end}}</td>
                                 </tr>
                                 {{end}}
                             </tbody>
@@ -895,9 +1039,18 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
                             <tbody>
                                 {{range .OutputFields}}
                                 <tr>
-                                    <td><span class="field-name">{{.Name}}</span></td>
+                                    <td>
+                                        <div class="field-name-box">
+                                            <span class="field-name">{{.Name}}</span>
+                                            <button class="copy-btn copy-btn-field" onclick="copyToClipboard('{{.Name}}', this)" title="复制参数名">
+                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </td>
                                     <td><span class="field-type">{{.Type}}</span></td>
-                                    <td>{{.Description}}</td>
+                                    <td>{{if .Description}}{{.Description}}{{else}}-{{end}}</td>
                                 </tr>
                                 {{end}}
                             </tbody>
@@ -917,6 +1070,37 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
     </div>
 
     <script>
+        function copyToClipboard(text, button) {
+            navigator.clipboard.writeText(text).then(function() {
+                // 复制成功的视觉反馈
+                const originalClass = button.className;
+                button.classList.add('copied');
+
+                // 临时显示复制成功状态
+                setTimeout(function() {
+                    button.className = originalClass;
+                }, 1500);
+            }).catch(function(err) {
+                // 降级处理：使用传统方法
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    const originalClass = button.className;
+                    button.classList.add('copied');
+                    setTimeout(function() {
+                        button.className = originalClass;
+                    }, 1500);
+                } catch (err) {
+                    console.error('复制失败:', err);
+                }
+                document.body.removeChild(textArea);
+            });
+        }
+
         function scrollToService(serviceId) {
             const element = document.getElementById(serviceId);
             if (element) {
