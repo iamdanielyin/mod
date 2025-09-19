@@ -625,10 +625,12 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
             width: 300px;
             background: #fff;
             border-right: 1px solid #f0f0f0;
-            overflow-y: auto;
             position: fixed;
             height: 100vh;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         .sidebar-header {
@@ -636,6 +638,13 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
             border-bottom: 1px solid #f0f0f0;
             background: #001529;
             color: #fff;
+            flex-shrink: 0;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            background: white;
         }
 
         .sidebar-header h1 {
@@ -1063,32 +1072,201 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
                 position: relative;
                 width: 100%;
                 height: auto;
+                max-height: 300px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                border-right: none;
+                border-bottom: 1px solid #f0f0f0;
+                z-index: 100;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+
+            .sidebar.collapsed {
+                max-height: 60px;
+            }
+
+            .sidebar-header {
+                position: relative;
+                cursor: pointer;
+                user-select: none;
+                flex-shrink: 0;
+                background: #001529;
+                border-bottom: 1px solid #f0f0f0;
+            }
+
+            .sidebar-content {
+                flex: 1;
+                overflow-y: auto;
+                transition: opacity 0.3s ease;
+                background: white;
+            }
+
+            .sidebar-header::after {
+                content: '';
+                position: absolute;
+                right: 16px;
+                top: 50%;
+                transform: translateY(-50%) rotate(90deg);
+                width: 20px;
+                height: 14px;
+                background-image:
+                    linear-gradient(to right, white 0%, white 100%),
+                    linear-gradient(to right, white 0%, white 100%),
+                    linear-gradient(to right, white 0%, white 100%);
+                background-size: 100% 2px;
+                background-position:
+                    0 0,
+                    0 6px,
+                    0 12px;
+                background-repeat: no-repeat;
+                transition: transform 0.3s ease;
+            }
+
+            .sidebar.collapsed .sidebar-header::after {
+                transform: translateY(-50%) rotate(0deg);
+            }
+
+            .sidebar.collapsed .sidebar-content {
+                opacity: 0;
+                pointer-events: none;
             }
 
             .main-content {
                 margin-left: 0;
+                padding: 16px;
+            }
+
+            .api-section {
+                margin-bottom: 24px;
+            }
+
+            .api-header {
+                padding: 12px 16px;
+            }
+
+            .api-title {
+                font-size: 16px;
+                margin-bottom: 6px;
+            }
+
+            .api-meta {
+                flex-direction: column;
+                gap: 8px;
+                font-size: 11px;
+            }
+
+            .api-body {
+                padding: 16px;
+            }
+
+            .params-table {
+                font-size: 12px;
+            }
+
+            .params-table th,
+            .params-table td {
+                padding: 6px 8px;
+            }
+
+            .field-name-box {
+                flex-direction: column;
+                align-items: flex-start !important;
+                gap: 4px;
+            }
+
+            .field-name {
+                font-size: 13px;
+                cursor: pointer;
+                padding: 4px 8px;
+                border-radius: 4px;
+                transition: background-color 0.2s;
+                display: inline-block;
+            }
+
+            .field-name:hover {
+                background-color: rgba(24, 144, 255, 0.1);
+                color: #1890ff;
+            }
+
+            .field-name:active {
+                background-color: rgba(24, 144, 255, 0.2);
+            }
+
+            .field-type {
+                font-size: 11px;
+                padding: 1px 4px;
+            }
+
+            .copy-btn-field {
+                display: none !important;
+            }
+
+            .field-path {
+                font-size: 10px;
+                margin-left: 0;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .main-content {
+                padding: 12px;
+            }
+
+            .api-header {
+                padding: 10px 12px;
+            }
+
+            .api-body {
+                padding: 12px;
+            }
+
+            .api-title {
+                font-size: 14px;
+            }
+
+            .params-table th,
+            .params-table td {
+                padding: 4px 6px;
+                font-size: 11px;
+            }
+
+            .field-name {
+                font-size: 12px;
+            }
+
+            .api-path {
+                font-size: 11px;
+            }
+
+            .meta-value,
+            .meta-value-text {
+                font-size: 10px;
+                padding: 1px 4px;
             }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="sidebar">
-            <div class="sidebar-header">
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header" onclick="toggleSidebar()">
                 <h1>API 文档</h1>
             </div>
-            {{range .}}
-            <div class="group">
-                <div class="group-title">{{.Name}}</div>
-                <div class="service-list">
-                    {{range .Services}}
-                    <div class="service-item" onclick="scrollToService('service-{{.Name}}')">
-                        {{.DisplayName}}
+            <div class="sidebar-content">
+                {{range .}}
+                <div class="group">
+                    <div class="group-title">{{.Name}}</div>
+                    <div class="service-list">
+                        {{range .Services}}
+                        <div class="service-item" onclick="scrollToService('service-{{.Name}}')">
+                            {{.DisplayName}}
+                        </div>
+                        {{end}}
                     </div>
-                    {{end}}
                 </div>
+                {{end}}
             </div>
-            {{end}}
         </div>
 
         <div class="main-content">
@@ -1218,6 +1396,48 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
             });
         }
 
+        // 移动端参数名点击复制功能
+        function copyFieldName(text, element) {
+            // 检查是否为移动端
+            if (window.innerWidth <= 768) {
+                // 创建临时的视觉反馈
+                const originalBg = element.style.backgroundColor;
+                const originalColor = element.style.color;
+
+                // 设置复制成功的视觉效果
+                element.style.backgroundColor = '#52c41a';
+                element.style.color = '#fff';
+
+                // 执行复制
+                navigator.clipboard.writeText(text).then(function() {
+                    // 1.5秒后恢复原样
+                    setTimeout(function() {
+                        element.style.backgroundColor = originalBg;
+                        element.style.color = originalColor;
+                    }, 1500);
+                }).catch(function(err) {
+                    // 降级处理
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        setTimeout(function() {
+                            element.style.backgroundColor = originalBg;
+                            element.style.color = originalColor;
+                        }, 1500);
+                    } catch (err) {
+                        console.error('复制失败:', err);
+                        element.style.backgroundColor = originalBg;
+                        element.style.color = originalColor;
+                    }
+                    document.body.removeChild(textArea);
+                });
+            }
+        }
+
         function scrollToService(serviceId) {
             const element = document.getElementById(serviceId);
             if (element) {
@@ -1228,6 +1448,12 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
                     item.classList.remove('active');
                 });
                 event.target.classList.add('active');
+
+                // 移动端自动折叠侧边栏
+                if (window.innerWidth <= 768) {
+                    const sidebar = document.getElementById('sidebar');
+                    sidebar.classList.add('collapsed');
+                }
             }
         }
 
@@ -1246,7 +1472,8 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
 
             serviceItems.forEach(item => {
                 item.classList.remove('active');
-                if (item.getAttribute('onclick').includes(current)) {
+                // 只有当current不为空且匹配时才添加active类
+                if (current && item.getAttribute('onclick').includes(current)) {
                     item.classList.add('active');
                 }
             });
@@ -1254,6 +1481,34 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
 
         window.addEventListener('scroll', updateActiveService);
         document.addEventListener('DOMContentLoaded', updateActiveService);
+
+        // 移动端侧边栏折叠功能
+        function toggleSidebar() {
+            // 只在移动端有效
+            if (window.innerWidth <= 768) {
+                const sidebar = document.getElementById('sidebar');
+                sidebar.classList.toggle('collapsed');
+            }
+        }
+
+        // 窗口大小变化时重置侧边栏状态
+        window.addEventListener('resize', function() {
+            const sidebar = document.getElementById('sidebar');
+            if (window.innerWidth > 768) {
+                sidebar.classList.remove('collapsed');
+            } else if (!sidebar.classList.contains('collapsed')) {
+                // 移动端默认折叠状态
+                sidebar.classList.add('collapsed');
+            }
+        });
+
+        // 初始化移动端状态
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.innerWidth <= 768) {
+                const sidebar = document.getElementById('sidebar');
+                sidebar.classList.add('collapsed');
+            }
+        });
 
         // 展开/折叠嵌套字段
         function toggleNested(button) {
@@ -1323,7 +1578,7 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
                 {{else}}
                 <span class="expand-btn-placeholder"></span>
                 {{end}}
-                <span class="field-name">{{.Name}}</span>
+                <span class="field-name" onclick="copyFieldName('{{.Name}}', this)" title="点击复制参数名">{{.Name}}</span>
                 {{if .Parent}}<span class="field-path">({{.Parent}})</span>{{end}}
                 <button class="copy-btn copy-btn-field" onclick="copyToClipboard('{{.Name}}', this)" title="复制参数名">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
@@ -1351,7 +1606,7 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
                 {{else}}
                 <span class="expand-btn-placeholder"></span>
                 {{end}}
-                <span class="field-name">{{.Name}}</span>
+                <span class="field-name" onclick="copyFieldName('{{.Name}}', this)" title="点击复制参数名">{{.Name}}</span>
                 {{if .Parent}}<span class="field-path">({{.Parent}})</span>{{end}}
                 <button class="copy-btn copy-btn-field" onclick="copyToClipboard('{{.Name}}', this)" title="复制参数名">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
