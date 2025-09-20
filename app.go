@@ -601,13 +601,55 @@ type DocGroup struct {
 	Services []DocService
 }
 
+// DocData contains all documentation data including app info and service groups
+type DocData struct {
+	AppInfo struct {
+		Name        string
+		DisplayName string
+		Description string
+		Version     string
+	}
+	Groups []DocGroup
+}
+
 // 处理文档请求
 func (app *App) handleDocs(c *fiber.Ctx) error {
 	// 按组分类并排序服务
 	groups := app.groupAndSortServices()
 
+	// 准备文档数据
+	docData := DocData{
+		Groups: groups,
+	}
+
+	// 设置应用信息
+	docData.AppInfo.Name = app.cfg.Name
+	docData.AppInfo.DisplayName = app.cfg.DisplayName
+	docData.AppInfo.Description = app.cfg.Description
+
+	// 如果有mod配置，优先使用mod配置中的信息
+	if modConfig := app.cfg.ModConfig; modConfig != nil {
+		if modConfig.App.Name != "" {
+			docData.AppInfo.Name = modConfig.App.Name
+		}
+		if modConfig.App.DisplayName != "" {
+			docData.AppInfo.DisplayName = modConfig.App.DisplayName
+		}
+		if modConfig.App.Description != "" {
+			docData.AppInfo.Description = modConfig.App.Description
+		}
+		if modConfig.App.Version != "" {
+			docData.AppInfo.Version = modConfig.App.Version
+		}
+	}
+
+	// 设置默认值
+	if docData.AppInfo.DisplayName == "" {
+		docData.AppInfo.DisplayName = "API 文档"
+	}
+
 	// 生成HTML
-	html := app.generateDocsHTML(groups)
+	html := app.generateDocsHTML(docData)
 
 	c.Set("Content-Type", "text/html; charset=utf-8")
 	return c.SendString(html)
@@ -834,13 +876,13 @@ func (app *App) parseModTagFrom(modTag string) string {
 }
 
 // 生成HTML文档
-func (app *App) generateDocsHTML(groups []DocGroup) string {
+func (app *App) generateDocsHTML(docData DocData) string {
 	tmpl := `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>API 文档</title>
+    <title>{{.AppInfo.DisplayName}}{{if .AppInfo.Version}} v{{.AppInfo.Version}}{{end}}</title>
     <style>
         * {
             margin: 0;
@@ -889,6 +931,13 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
         .sidebar-header h1 {
             font-size: 16px;
             font-weight: 600;
+            margin: 0 0 4px 0;
+        }
+
+        .version {
+            font-size: 12px;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.8);
             margin: 0;
         }
 
@@ -1490,10 +1539,11 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
     <div class="container">
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header" onclick="toggleSidebar()">
-                <h1>API 文档</h1>
+                <h1>{{.AppInfo.DisplayName}}</h1>
+                {{if .AppInfo.Version}}<div class="version">v{{.AppInfo.Version}}</div>{{end}}
             </div>
             <div class="sidebar-content">
-                {{range .}}
+                {{range .Groups}}
                 <div class="group">
                     <div class="group-title">{{.Name}}</div>
                     <div class="service-list">
@@ -1509,7 +1559,7 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
         </div>
 
         <div class="main-content">
-            {{range .}}
+            {{range .Groups}}
             {{range .Services}}
             <div class="api-section" id="service-{{.Name}}">
                 <div class="api-header">
@@ -1873,6 +1923,6 @@ func (app *App) generateDocsHTML(groups []DocGroup) string {
 
 	t := template.Must(template.New("docs").Funcs(funcMap).Parse(tmpl))
 	var buf strings.Builder
-	t.Execute(&buf, groups)
+	t.Execute(&buf, docData)
 	return buf.String()
 }
