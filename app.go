@@ -6,7 +6,10 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
 	"html/template"
+	"io/ioutil"
+	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -18,6 +21,213 @@ func init() {
 	validate = validator.New(validator.WithRequiredStructEnabled())
 }
 
+// ModConfig represents the structure of mod.yml configuration file
+type ModConfig struct {
+	App struct {
+		Name        string `yaml:"name"`
+		DisplayName string `yaml:"display_name"`
+		Description string `yaml:"description"`
+		Version     string `yaml:"version"`
+	} `yaml:"app"`
+
+	Cache struct {
+		BigCache struct {
+			Enabled            bool   `yaml:"enabled"`
+			Shards             int    `yaml:"shards"`
+			LifeWindow         string `yaml:"life_window"`
+			CleanWindow        string `yaml:"clean_window"`
+			MaxEntriesInWindow int    `yaml:"max_entries_in_window"`
+			MaxEntrySize       int    `yaml:"max_entry_size"`
+			Verbose            bool   `yaml:"verbose"`
+			HardMaxCacheSize   int    `yaml:"hard_max_cache_size"`
+		} `yaml:"bigcache"`
+
+		Badger struct {
+			Enabled                 bool   `yaml:"enabled"`
+			Path                    string `yaml:"path"`
+			InMemory                bool   `yaml:"in_memory"`
+			SyncWrites              bool   `yaml:"sync_writes"`
+			ValueLogFileSize        int    `yaml:"value_log_file_size"`
+			NumCompactors           int    `yaml:"num_compactors"`
+			NumLevelZeroTables      int    `yaml:"num_level_zero_tables"`
+			NumLevelZeroTablesStall int    `yaml:"num_level_zero_tables_stall"`
+			ValueLogLoadSize        int    `yaml:"value_log_load_size"`
+		} `yaml:"badger"`
+
+		Redis struct {
+			Enabled      bool   `yaml:"enabled"`
+			Address      string `yaml:"address"`
+			Password     string `yaml:"password"`
+			DB           int    `yaml:"db"`
+			PoolSize     int    `yaml:"pool_size"`
+			MinIdleConns int    `yaml:"min_idle_conns"`
+			DialTimeout  string `yaml:"dial_timeout"`
+			ReadTimeout  string `yaml:"read_timeout"`
+			WriteTimeout string `yaml:"write_timeout"`
+			IdleTimeout  string `yaml:"idle_timeout"`
+			MaxConnAge   string `yaml:"max_conn_age"`
+		} `yaml:"redis"`
+	} `yaml:"cache"`
+
+	RSAKeys struct {
+		PrivateKey string `yaml:"private_key"`
+		PublicKey  string `yaml:"public_key"`
+	} `yaml:"rsa_keys"`
+
+	FileUpload struct {
+		Local struct {
+			Enabled      bool     `yaml:"enabled"`
+			UploadDir    string   `yaml:"upload_dir"`
+			MaxSize      string   `yaml:"max_size"`
+			AllowedTypes []string `yaml:"allowed_types"`
+		} `yaml:"local"`
+
+		S3 struct {
+			Enabled   bool   `yaml:"enabled"`
+			Bucket    string `yaml:"bucket"`
+			Region    string `yaml:"region"`
+			AccessKey string `yaml:"access_key"`
+			SecretKey string `yaml:"secret_key"`
+			Endpoint  string `yaml:"endpoint"`
+		} `yaml:"s3"`
+
+		OSS struct {
+			Enabled         bool   `yaml:"enabled"`
+			Bucket          string `yaml:"bucket"`
+			Endpoint        string `yaml:"endpoint"`
+			AccessKeyID     string `yaml:"access_key_id"`
+			AccessKeySecret string `yaml:"access_key_secret"`
+		} `yaml:"oss"`
+	} `yaml:"file_upload"`
+
+	StaticMounts []struct {
+		URLPrefix  string `yaml:"url_prefix"`
+		LocalPath  string `yaml:"local_path"`
+		Browseable bool   `yaml:"browseable"`
+		IndexFile  string `yaml:"index_file"`
+	} `yaml:"static_mounts"`
+
+	Logging struct {
+		Console struct {
+			Enabled bool   `yaml:"enabled"`
+			Level   string `yaml:"level"`
+		} `yaml:"console"`
+
+		Loki struct {
+			Enabled   bool              `yaml:"enabled"`
+			URL       string            `yaml:"url"`
+			Labels    map[string]string `yaml:"labels"`
+			BatchSize int               `yaml:"batch_size"`
+			Timeout   string            `yaml:"timeout"`
+		} `yaml:"loki"`
+
+		SLS struct {
+			Enabled         bool   `yaml:"enabled"`
+			Endpoint        string `yaml:"endpoint"`
+			Project         string `yaml:"project"`
+			Logstore        string `yaml:"logstore"`
+			AccessKeyID     string `yaml:"access_key_id"`
+			AccessKeySecret string `yaml:"access_key_secret"`
+		} `yaml:"sls"`
+
+		File struct {
+			Enabled    bool   `yaml:"enabled"`
+			Path       string `yaml:"path"`
+			MaxSize    string `yaml:"max_size"`
+			MaxBackups int    `yaml:"max_backups"`
+			MaxAge     string `yaml:"max_age"`
+			Compress   bool   `yaml:"compress"`
+		} `yaml:"file"`
+	} `yaml:"logging"`
+
+	Settings struct {
+		Port           int    `yaml:"port"`
+		ReadTimeout    string `yaml:"read_timeout"`
+		WriteTimeout   string `yaml:"write_timeout"`
+		MaxConnections int    `yaml:"max_connections"`
+		CacheStrategy  string `yaml:"cache_strategy"`
+	} `yaml:"settings"`
+}
+
+// loadModConfig attempts to load configuration from mod.yml file
+func loadModConfig() (*ModConfig, error) {
+	var configPath string
+
+	// First, check MOD_PATH environment variable
+	if envPath := os.Getenv("MOD_PATH"); envPath != "" {
+		configPath = envPath
+	} else {
+		// Second, check for mod.yml in current directory
+		if _, err := os.Stat("mod.yml"); err == nil {
+			configPath = "mod.yml"
+		} else {
+			// No configuration file found
+			return nil, nil
+		}
+	}
+
+	// Read the configuration file
+	data, err := ioutil.ReadFile(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file %s: %w", configPath, err)
+	}
+
+	var config ModConfig
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse config file %s: %w", configPath, err)
+	}
+
+	return &config, nil
+}
+
+// mergeConfigs merges ModConfig into Config, with manual config taking precedence
+func mergeConfigs(fileConfig *ModConfig, manualConfig Config) Config {
+	// Start with manual config values
+	merged := manualConfig
+
+	// Store the complete ModConfig for later use
+	merged.ModConfig = fileConfig
+
+	// Only override if manual config has default/empty values
+	if merged.Name == "" && fileConfig.App.Name != "" {
+		merged.Name = fileConfig.App.Name
+	}
+	if merged.DisplayName == "" && fileConfig.App.DisplayName != "" {
+		merged.DisplayName = fileConfig.App.DisplayName
+	}
+	if merged.Description == "" && fileConfig.App.Description != "" {
+		merged.Description = fileConfig.App.Description
+	}
+
+	// Server settings from settings section
+	if merged.BodyLimit <= 0 && fileConfig.Settings.MaxConnections > 0 {
+		// Use max_connections as a proxy for body limit if not explicitly set
+		merged.BodyLimit = 100 * 1024 * 1024 // Default 100MB
+	}
+
+	return merged
+}
+
+// applyLoggingConfig applies logging configuration from mod.yml to logger
+func applyLoggingConfig(logger *logrus.Logger, config *ModConfig) {
+	if config == nil {
+		return
+	}
+
+	// Set log level from console logging config
+	if config.Logging.Console.Enabled && config.Logging.Console.Level != "" {
+		if level, err := logrus.ParseLevel(config.Logging.Console.Level); err == nil {
+			logger.SetLevel(level)
+		}
+	}
+
+	// Always use text formatter for now, but can be extended
+	logger.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+		ForceColors:   true,
+	})
+}
+
 type Config struct {
 	fiber.Config
 	Name        string
@@ -27,13 +237,31 @@ type Config struct {
 	ServicePrefix string
 	TokenKey      string
 	Logger        *logrus.Logger
+
+	// ModConfig holds the complete configuration from mod.yml
+	ModConfig *ModConfig `json:"-"`
 }
 
 func New(config ...Config) *App {
 	var cfg Config
+	var fileConfig *ModConfig
+	var err error
+
 	if len(config) > 0 {
 		cfg = config[0]
 	}
+
+	// Try to load configuration from mod.yml file
+	if fileConfig, err = loadModConfig(); err != nil {
+		// Log warning but continue with manual config
+		logrus.Warnf("Failed to load mod.yml config: %v", err)
+	} else if fileConfig != nil {
+		// Merge file config with manual config, manual takes precedence
+		cfg = mergeConfigs(fileConfig, cfg)
+		logrus.Infof("Loaded configuration from mod.yml")
+	}
+
+	// Apply default values if still empty
 	if cfg.Config.BodyLimit <= 0 {
 		cfg.Config.BodyLimit = 100 * 1024 * 1024 // 100M
 	}
@@ -49,6 +277,11 @@ func New(config ...Config) *App {
 			FullTimestamp: true,
 			ForceColors:   true,
 		})
+	}
+
+	// Apply logging configuration from file if available
+	if fileConfig != nil {
+		applyLoggingConfig(cfg.Logger, fileConfig)
 	}
 
 	app := &App{
@@ -83,6 +316,12 @@ func (app *App) Run(addr ...string) {
 	if err := app.Listen(a); err != nil {
 		panic(err)
 	}
+}
+
+// GetModConfig returns the loaded mod.yml configuration
+// Returns nil if no mod.yml was loaded
+func (app *App) GetModConfig() *ModConfig {
+	return app.cfg.ModConfig
 }
 
 func (app *App) Register(svc Service) error {
