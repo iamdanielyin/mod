@@ -1,10 +1,14 @@
 package mod
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/allegro/bigcache/v3"
+	"github.com/dgraph-io/badger/v4"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 	"html/template"
@@ -13,6 +17,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 )
 
 var validate *validator.Validate
@@ -139,6 +144,43 @@ type ModConfig struct {
 			Compress   bool   `yaml:"compress"`
 		} `yaml:"file"`
 	} `yaml:"logging"`
+
+	Token struct {
+		JWT struct {
+			Enabled               bool   `yaml:"enabled"`
+			SecretKey             string `yaml:"secret_key"`
+			Issuer                string `yaml:"issuer"`
+			ExpireDuration        string `yaml:"expire_duration"`
+			RefreshExpireDuration string `yaml:"refresh_expire_duration"`
+			Algorithm             string `yaml:"algorithm"`
+		} `yaml:"jwt"`
+
+		Validation struct {
+			Enabled          bool   `yaml:"enabled"`
+			SkipExpiredCheck bool   `yaml:"skip_expired_check"`
+			CacheStrategy    string `yaml:"cache_strategy"`
+			CacheKeyPrefix   string `yaml:"cache_key_prefix"`
+
+			BigCache struct {
+				Enabled     bool   `yaml:"enabled"`
+				LifeWindow  string `yaml:"life_window"`
+				CleanWindow string `yaml:"clean_window"`
+				MaxEntries  int    `yaml:"max_entries"`
+			} `yaml:"bigcache"`
+
+			Badger struct {
+				Enabled bool   `yaml:"enabled"`
+				Path    string `yaml:"path"`
+				TTL     string `yaml:"ttl"`
+			} `yaml:"badger"`
+
+			Redis struct {
+				Enabled   bool   `yaml:"enabled"`
+				KeyPrefix string `yaml:"key_prefix"`
+				TTL       string `yaml:"ttl"`
+			} `yaml:"redis"`
+		} `yaml:"validation"`
+	} `yaml:"token"`
 
 	Settings struct {
 		Port           int    `yaml:"port"`
@@ -291,18 +333,195 @@ func New(config ...Config) *App {
 		tokenKeys: SplitAndTrimSpace(cfg.TokenKey, ","),
 	}
 
+	// 初始化 Token 缓存
+	if fileConfig != nil && fileConfig.Token.Validation.Enabled {
+		if fileConfig.Token.Validation.BigCache.Enabled {
+			app.initTokenCache(fileConfig)
+		}
+		if fileConfig.Token.Validation.Badger.Enabled {
+			app.initBadgerDB(fileConfig)
+		}
+		if fileConfig.Token.Validation.Redis.Enabled {
+			app.initRedisClient(fileConfig)
+		}
+	}
+
 	// 注册文档路由
 	app.Get("/services/docs", app.handleDocs)
 
 	return app
 }
 
+// initTokenCache 初始化 Token 缓存
+func (app *App) initTokenCache(config *ModConfig) {
+	if !config.Token.Validation.BigCache.Enabled {
+		return
+	}
+
+	// 解析配置参数
+	lifeWindow, err := time.ParseDuration(config.Token.Validation.BigCache.LifeWindow)
+	if err != nil {
+		app.logger.WithError(err).Warn("Invalid BigCache life_window, using default 24h")
+		lifeWindow = 24 * time.Hour
+	}
+
+	cleanWindow, err := time.ParseDuration(config.Token.Validation.BigCache.CleanWindow)
+	if err != nil {
+		app.logger.WithError(err).Warn("Invalid BigCache clean_window, using default 1h")
+		cleanWindow = time.Hour
+	}
+
+	maxEntries := config.Token.Validation.BigCache.MaxEntries
+	if maxEntries <= 0 {
+		maxEntries = 10000 // 默认值
+	}
+
+	// 创建 BigCache 配置
+	bigCacheConfig := bigcache.Config{
+		Shards:             1024,
+		LifeWindow:         lifeWindow,
+		CleanWindow:        cleanWindow,
+		MaxEntriesInWindow: maxEntries,
+		MaxEntrySize:       256, // Token 一般不会太长
+		Verbose:            false,
+		HardMaxCacheSize:   0, // 不限制内存大小
+		OnRemove:           nil,
+		OnRemoveWithReason: nil,
+	}
+
+	// 初始化 BigCache
+	cache, err := bigcache.New(context.Background(), bigCacheConfig)
+	if err != nil {
+		app.logger.WithError(err).Error("Failed to initialize BigCache for token validation")
+		return
+	}
+
+	app.tokenCache = cache
+	app.logger.Info("BigCache for token validation initialized successfully")
+}
+
+// initBadgerDB 初始化 BadgerDB
+func (app *App) initBadgerDB(config *ModConfig) {
+	if !config.Token.Validation.Badger.Enabled {
+		return
+	}
+
+	dbPath := config.Token.Validation.Badger.Path
+	if dbPath == "" {
+		dbPath = "./data/tokens" // 默认路径
+	}
+
+	// 创建 BadgerDB 选项
+	opts := badger.DefaultOptions(dbPath)
+	opts.Logger = &badgerLogger{logger: app.logger} // 使用自定义 logger
+
+	// 打开 BadgerDB
+	db, err := badger.Open(opts)
+	if err != nil {
+		app.logger.WithError(err).WithField("path", dbPath).Error("Failed to initialize BadgerDB for token validation")
+		return
+	}
+
+	app.badgerDB = db
+	app.logger.WithField("path", dbPath).Info("BadgerDB for token validation initialized successfully")
+}
+
+// badgerLogger 实现 BadgerDB 的 Logger 接口
+type badgerLogger struct {
+	logger *logrus.Logger
+}
+
+func (bl *badgerLogger) Errorf(f string, v ...interface{}) {
+	bl.logger.Errorf("BadgerDB: "+f, v...)
+}
+
+func (bl *badgerLogger) Warningf(f string, v ...interface{}) {
+	bl.logger.Warnf("BadgerDB: "+f, v...)
+}
+
+func (bl *badgerLogger) Infof(f string, v ...interface{}) {
+	bl.logger.Infof("BadgerDB: "+f, v...)
+}
+
+func (bl *badgerLogger) Debugf(f string, v ...interface{}) {
+	bl.logger.Debugf("BadgerDB: "+f, v...)
+}
+
+// initRedisClient 初始化 Redis 客户端
+func (app *App) initRedisClient(config *ModConfig) {
+	if !config.Token.Validation.Redis.Enabled {
+		return
+	}
+
+	// 从主 Redis 配置获取连接信息
+	redisConfig := config.Cache.Redis
+	if redisConfig.Address == "" {
+		app.logger.Error("Redis address not configured for token validation")
+		return
+	}
+
+	// 创建 Redis 客户端选项
+	opts := &redis.Options{
+		Addr:         redisConfig.Address,
+		Password:     redisConfig.Password,
+		DB:           redisConfig.DB,
+		PoolSize:     redisConfig.PoolSize,
+		MinIdleConns: redisConfig.MinIdleConns,
+	}
+
+	// 解析超时时间
+	if redisConfig.DialTimeout != "" {
+		if dialTimeout, err := time.ParseDuration(redisConfig.DialTimeout); err == nil {
+			opts.DialTimeout = dialTimeout
+		}
+	}
+	if redisConfig.ReadTimeout != "" {
+		if readTimeout, err := time.ParseDuration(redisConfig.ReadTimeout); err == nil {
+			opts.ReadTimeout = readTimeout
+		}
+	}
+	if redisConfig.WriteTimeout != "" {
+		if writeTimeout, err := time.ParseDuration(redisConfig.WriteTimeout); err == nil {
+			opts.WriteTimeout = writeTimeout
+		}
+	}
+	if redisConfig.IdleTimeout != "" {
+		if idleTimeout, err := time.ParseDuration(redisConfig.IdleTimeout); err == nil {
+			opts.ConnMaxIdleTime = idleTimeout
+		}
+	}
+	if redisConfig.MaxConnAge != "" {
+		if maxConnAge, err := time.ParseDuration(redisConfig.MaxConnAge); err == nil {
+			opts.ConnMaxLifetime = maxConnAge
+		}
+	}
+
+	// 创建 Redis 客户端
+	rdb := redis.NewClient(opts)
+
+	// 测试连接
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := rdb.Ping(ctx).Result()
+	if err != nil {
+		app.logger.WithError(err).WithField("address", redisConfig.Address).Error("Failed to connect to Redis for token validation")
+		return
+	}
+
+	app.redisClient = rdb
+	app.logger.WithField("address", redisConfig.Address).Info("Redis client for token validation initialized successfully")
+}
+
 type App struct {
 	*fiber.App
-	logger    *logrus.Logger
-	cfg       Config
-	tokenKeys []string
-	services  []Service // 存储已注册的服务用于生成文档
+	logger      *logrus.Logger
+	cfg         Config
+	tokenKeys   []string
+	services    []Service          // 存储已注册的服务用于生成文档
+	tokenCache  *bigcache.BigCache // Token验证缓存
+	badgerDB    *badger.DB         // BadgerDB 实例
+	redisClient *redis.Client      // Redis 客户端
 }
 
 func (app *App) Run(addr ...string) {
@@ -340,6 +559,16 @@ func (app *App) Register(svc Service) error {
 			token := parseToken(fc, app.tokenKeys)
 			if token == "" {
 				return fc.Status(401).JSON(NewErrorResponse(ctx, 401, "Unauthorized"))
+			}
+
+			// 验证 token 的有效性
+			if !app.validateToken(token) {
+				app.logger.WithFields(logrus.Fields{
+					"service": svc.Name,
+					"token":   token,
+					"rid":     ctx.GetRequestID(),
+				}).Warn("Token validation failed")
+				return fc.Status(401).JSON(NewErrorResponse(ctx, 401, "Invalid token"))
 			}
 		}
 
@@ -441,6 +670,446 @@ func parseToken(kc *fiber.Ctx, keys []string) string {
 		kc.Context().SetUserValue(cacheKey, value)
 	}
 	return value
+}
+
+// validateToken 验证 token 的有效性
+// 当 SkipAuth 为 false 时，需要验证 token 是否在缓存中存在
+func (app *App) validateToken(token string) bool {
+	// 如果没有配置 token 验证，或者验证被禁用，则跳过验证
+	if app.cfg.ModConfig == nil || !app.cfg.ModConfig.Token.Validation.Enabled {
+		return true
+	}
+
+	if token == "" {
+		return false
+	}
+
+	config := app.cfg.ModConfig.Token.Validation
+	cacheKey := config.CacheKeyPrefix + token
+
+	// 根据配置的缓存策略进行验证
+	switch config.CacheStrategy {
+	case "bigcache":
+		if config.BigCache.Enabled && app.tokenCache != nil {
+			// 查询 BigCache 中是否存在该 token
+			_, err := app.tokenCache.Get(cacheKey)
+			if err != nil {
+				// 如果是 bigcache.ErrEntryNotFound，说明 token 不存在或已过期
+				if err == bigcache.ErrEntryNotFound {
+					app.logger.WithFields(logrus.Fields{
+						"token":     token,
+						"cache_key": cacheKey,
+					}).Debug("Token not found in BigCache")
+					return false
+				}
+				// 其他错误，记录日志但允许通过（避免缓存问题影响正常业务）
+				app.logger.WithFields(logrus.Fields{
+					"token":     token,
+					"cache_key": cacheKey,
+					"error":     err.Error(),
+				}).Warn("BigCache query error, allowing token validation to pass")
+				return true
+			}
+			// Token 存在，验证通过
+			app.logger.WithFields(logrus.Fields{
+				"token":     token,
+				"cache_key": cacheKey,
+			}).Debug("Token validated successfully in BigCache")
+			return true
+		}
+	case "badger":
+		if config.Badger.Enabled && app.badgerDB != nil {
+			// 查询 BadgerDB 中是否存在该 token
+			err := app.badgerDB.View(func(txn *badger.Txn) error {
+				_, err := txn.Get([]byte(cacheKey))
+				return err
+			})
+
+			if err != nil {
+				if err == badger.ErrKeyNotFound {
+					app.logger.WithFields(logrus.Fields{
+						"token":     token,
+						"cache_key": cacheKey,
+					}).Debug("Token not found in BadgerDB")
+					return false
+				}
+				// 其他错误，记录日志但允许通过
+				app.logger.WithFields(logrus.Fields{
+					"token":     token,
+					"cache_key": cacheKey,
+					"error":     err.Error(),
+				}).Warn("BadgerDB query error, allowing token validation to pass")
+				return true
+			}
+
+			// Token 存在，验证通过
+			app.logger.WithFields(logrus.Fields{
+				"token":     token,
+				"cache_key": cacheKey,
+			}).Debug("Token validated successfully in BadgerDB")
+			return true
+		}
+	case "redis":
+		if config.Redis.Enabled && app.redisClient != nil {
+			// 查询 Redis 中是否存在该 token
+			redisKey := config.Redis.KeyPrefix + token
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
+			exists, err := app.redisClient.Exists(ctx, redisKey).Result()
+			if err != nil {
+				// Redis 查询错误，记录日志但允许通过
+				app.logger.WithFields(logrus.Fields{
+					"token":     token,
+					"redis_key": redisKey,
+					"error":     err.Error(),
+				}).Warn("Redis query error, allowing token validation to pass")
+				return true
+			}
+
+			if exists == 0 {
+				app.logger.WithFields(logrus.Fields{
+					"token":     token,
+					"redis_key": redisKey,
+				}).Debug("Token not found in Redis")
+				return false
+			}
+
+			// Token 存在，验证通过
+			app.logger.WithFields(logrus.Fields{
+				"token":     token,
+				"redis_key": redisKey,
+			}).Debug("Token validated successfully in Redis")
+			return true
+		}
+	}
+
+	// 如果没有匹配的缓存策略，默认返回 false
+	app.logger.WithFields(logrus.Fields{
+		"token":          token,
+		"cache_strategy": config.CacheStrategy,
+		"cache_key":      cacheKey,
+	}).Warn("Token validation failed: no valid cache strategy configured")
+
+	return false
+}
+
+// SetToken 将 token 添加到缓存中
+// 这个方法可以在用户登录时调用，将有效的 token 存储到缓存中
+func (app *App) SetToken(token string, data interface{}) error {
+	if app.cfg.ModConfig == nil || !app.cfg.ModConfig.Token.Validation.Enabled {
+		return nil
+	}
+
+	config := app.cfg.ModConfig.Token.Validation
+	cacheKey := config.CacheKeyPrefix + token
+
+	switch config.CacheStrategy {
+	case "bigcache":
+		if config.BigCache.Enabled && app.tokenCache != nil {
+			// 将数据序列化为 JSON
+			var value []byte
+			var err error
+			if data != nil {
+				value, err = json.Marshal(data)
+				if err != nil {
+					return fmt.Errorf("failed to marshal token data: %w", err)
+				}
+			} else {
+				value = []byte("1") // 如果没有数据，存储一个简单标记
+			}
+
+			err = app.tokenCache.Set(cacheKey, value)
+			if err != nil {
+				app.logger.WithFields(logrus.Fields{
+					"token":     token,
+					"cache_key": cacheKey,
+					"error":     err.Error(),
+				}).Error("Failed to set token in BigCache")
+				return fmt.Errorf("failed to set token in BigCache: %w", err)
+			}
+
+			app.logger.WithFields(logrus.Fields{
+				"token":     token,
+				"cache_key": cacheKey,
+			}).Debug("Token set successfully in BigCache")
+			return nil
+		}
+	case "badger":
+		if config.Badger.Enabled && app.badgerDB != nil {
+			// 将数据序列化为 JSON
+			var value []byte
+			var err error
+			if data != nil {
+				value, err = json.Marshal(data)
+				if err != nil {
+					return fmt.Errorf("failed to marshal token data: %w", err)
+				}
+			} else {
+				value = []byte("1") // 如果没有数据，存储一个简单标记
+			}
+
+			// 解析 TTL
+			var ttl time.Duration
+			if config.Badger.TTL != "" {
+				ttl, err = time.ParseDuration(config.Badger.TTL)
+				if err != nil {
+					app.logger.WithError(err).Warn("Invalid BadgerDB TTL, using default 24h")
+					ttl = 24 * time.Hour
+				}
+			} else {
+				ttl = 24 * time.Hour // 默认 24 小时
+			}
+
+			// 存储到 BadgerDB
+			err = app.badgerDB.Update(func(txn *badger.Txn) error {
+				entry := badger.NewEntry([]byte(cacheKey), value).WithTTL(ttl)
+				return txn.SetEntry(entry)
+			})
+
+			if err != nil {
+				app.logger.WithFields(logrus.Fields{
+					"token":     token,
+					"cache_key": cacheKey,
+					"error":     err.Error(),
+				}).Error("Failed to set token in BadgerDB")
+				return fmt.Errorf("failed to set token in BadgerDB: %w", err)
+			}
+
+			app.logger.WithFields(logrus.Fields{
+				"token":     token,
+				"cache_key": cacheKey,
+				"ttl":       ttl.String(),
+			}).Debug("Token set successfully in BadgerDB")
+			return nil
+		}
+	case "redis":
+		if config.Redis.Enabled && app.redisClient != nil {
+			// 将数据序列化为 JSON
+			var value string
+			if data != nil {
+				valueBytes, err := json.Marshal(data)
+				if err != nil {
+					return fmt.Errorf("failed to marshal token data: %w", err)
+				}
+				value = string(valueBytes)
+			} else {
+				value = "1" // 如果没有数据，存储一个简单标记
+			}
+
+			// 解析 TTL
+			var ttl time.Duration
+			if config.Redis.TTL != "" {
+				var err error
+				ttl, err = time.ParseDuration(config.Redis.TTL)
+				if err != nil {
+					app.logger.WithError(err).Warn("Invalid Redis TTL, using default 24h")
+					ttl = 24 * time.Hour
+				}
+			} else {
+				ttl = 24 * time.Hour // 默认 24 小时
+			}
+
+			// 存储到 Redis
+			redisKey := config.Redis.KeyPrefix + token
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
+			err := app.redisClient.Set(ctx, redisKey, value, ttl).Err()
+			if err != nil {
+				app.logger.WithFields(logrus.Fields{
+					"token":     token,
+					"redis_key": redisKey,
+					"error":     err.Error(),
+				}).Error("Failed to set token in Redis")
+				return fmt.Errorf("failed to set token in Redis: %w", err)
+			}
+
+			app.logger.WithFields(logrus.Fields{
+				"token":     token,
+				"redis_key": redisKey,
+				"ttl":       ttl.String(),
+			}).Debug("Token set successfully in Redis")
+			return nil
+		}
+	}
+
+	return fmt.Errorf("no valid cache strategy configured for token storage")
+}
+
+// RemoveToken 从缓存中删除 token
+// 这个方法可以在用户登出时调用，使 token 失效
+func (app *App) RemoveToken(token string) error {
+	if app.cfg.ModConfig == nil || !app.cfg.ModConfig.Token.Validation.Enabled {
+		return nil
+	}
+
+	config := app.cfg.ModConfig.Token.Validation
+	cacheKey := config.CacheKeyPrefix + token
+
+	switch config.CacheStrategy {
+	case "bigcache":
+		if config.BigCache.Enabled && app.tokenCache != nil {
+			err := app.tokenCache.Delete(cacheKey)
+			if err != nil && err != bigcache.ErrEntryNotFound {
+				app.logger.WithFields(logrus.Fields{
+					"token":     token,
+					"cache_key": cacheKey,
+					"error":     err.Error(),
+				}).Error("Failed to remove token from BigCache")
+				return fmt.Errorf("failed to remove token from BigCache: %w", err)
+			}
+
+			app.logger.WithFields(logrus.Fields{
+				"token":     token,
+				"cache_key": cacheKey,
+			}).Debug("Token removed successfully from BigCache")
+			return nil
+		}
+	case "badger":
+		if config.Badger.Enabled && app.badgerDB != nil {
+			err := app.badgerDB.Update(func(txn *badger.Txn) error {
+				return txn.Delete([]byte(cacheKey))
+			})
+
+			if err != nil && err != badger.ErrKeyNotFound {
+				app.logger.WithFields(logrus.Fields{
+					"token":     token,
+					"cache_key": cacheKey,
+					"error":     err.Error(),
+				}).Error("Failed to remove token from BadgerDB")
+				return fmt.Errorf("failed to remove token from BadgerDB: %w", err)
+			}
+
+			app.logger.WithFields(logrus.Fields{
+				"token":     token,
+				"cache_key": cacheKey,
+			}).Debug("Token removed successfully from BadgerDB")
+			return nil
+		}
+	case "redis":
+		if config.Redis.Enabled && app.redisClient != nil {
+			redisKey := config.Redis.KeyPrefix + token
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
+			deleted, err := app.redisClient.Del(ctx, redisKey).Result()
+			if err != nil {
+				app.logger.WithFields(logrus.Fields{
+					"token":     token,
+					"redis_key": redisKey,
+					"error":     err.Error(),
+				}).Error("Failed to remove token from Redis")
+				return fmt.Errorf("failed to remove token from Redis: %w", err)
+			}
+
+			app.logger.WithFields(logrus.Fields{
+				"token":     token,
+				"redis_key": redisKey,
+				"deleted":   deleted,
+			}).Debug("Token removed successfully from Redis")
+			return nil
+		}
+	}
+
+	return fmt.Errorf("no valid cache strategy configured for token removal")
+}
+
+// GetTokenData 从缓存中获取 token 相关的数据
+// 这个方法可以用来获取存储在 token 中的用户信息等数据
+func (app *App) GetTokenData(token string) ([]byte, error) {
+	if app.cfg.ModConfig == nil || !app.cfg.ModConfig.Token.Validation.Enabled {
+		return nil, fmt.Errorf("token validation not enabled")
+	}
+
+	config := app.cfg.ModConfig.Token.Validation
+	cacheKey := config.CacheKeyPrefix + token
+
+	switch config.CacheStrategy {
+	case "bigcache":
+		if config.BigCache.Enabled && app.tokenCache != nil {
+			data, err := app.tokenCache.Get(cacheKey)
+			if err != nil {
+				if err == bigcache.ErrEntryNotFound {
+					return nil, fmt.Errorf("token not found")
+				}
+				return nil, fmt.Errorf("failed to get token data from BigCache: %w", err)
+			}
+			return data, nil
+		}
+	case "badger":
+		if config.Badger.Enabled && app.badgerDB != nil {
+			var data []byte
+			err := app.badgerDB.View(func(txn *badger.Txn) error {
+				item, err := txn.Get([]byte(cacheKey))
+				if err != nil {
+					return err
+				}
+				return item.Value(func(val []byte) error {
+					data = append([]byte(nil), val...) // 复制数据
+					return nil
+				})
+			})
+
+			if err != nil {
+				if err == badger.ErrKeyNotFound {
+					return nil, fmt.Errorf("token not found")
+				}
+				return nil, fmt.Errorf("failed to get token data from BadgerDB: %w", err)
+			}
+			return data, nil
+		}
+	case "redis":
+		if config.Redis.Enabled && app.redisClient != nil {
+			redisKey := config.Redis.KeyPrefix + token
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
+			val, err := app.redisClient.Get(ctx, redisKey).Result()
+			if err != nil {
+				if err == redis.Nil {
+					return nil, fmt.Errorf("token not found")
+				}
+				return nil, fmt.Errorf("failed to get token data from Redis: %w", err)
+			}
+			return []byte(val), nil
+		}
+	}
+
+	return nil, fmt.Errorf("no valid cache strategy configured for token data retrieval")
+}
+
+// Close 关闭应用时释放资源
+func (app *App) Close() error {
+	var errors []error
+
+	// 关闭 BadgerDB
+	if app.badgerDB != nil {
+		if err := app.badgerDB.Close(); err != nil {
+			app.logger.WithError(err).Error("Failed to close BadgerDB")
+			errors = append(errors, fmt.Errorf("failed to close BadgerDB: %w", err))
+		} else {
+			app.logger.Info("BadgerDB closed successfully")
+		}
+	}
+
+	// 关闭 Redis 客户端
+	if app.redisClient != nil {
+		if err := app.redisClient.Close(); err != nil {
+			app.logger.WithError(err).Error("Failed to close Redis client")
+			errors = append(errors, fmt.Errorf("failed to close Redis client: %w", err))
+		} else {
+			app.logger.Info("Redis client closed successfully")
+		}
+	}
+
+	// 关闭 BigCache（BigCache v3 会自动清理，无需手动关闭）
+
+	if len(errors) > 0 {
+		return fmt.Errorf("errors occurred while closing app: %v", errors)
+	}
+
+	return nil
 }
 
 func (app *App) parseRequestParamsToStruct(fc *fiber.Ctx, in interface{}) error {

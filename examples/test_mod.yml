@@ -1,0 +1,109 @@
+# mod.yml - Token 缓存测试配置文件
+# 这个配置文件用于测试三种不同的 token 缓存策略
+
+# 应用基本信息
+app:
+  name: "token-cache-demo"
+  display_name: "Token缓存演示"
+  description: "演示BigCache、BadgerDB、Redis三种Token缓存策略"
+  version: "1.0.0"
+
+# 缓存配置
+cache:
+  # BigCache配置（内存缓存）
+  bigcache:
+    enabled: true
+    shards: 1024
+    life_window: "10m"
+    clean_window: "5m"
+    max_entries_in_window: 1000
+    max_entry_size: 500
+    verbose: false
+    hard_max_cache_size: 8192
+
+  # BadgerDB配置（本地持久化键值存储）
+  badger:
+    enabled: true
+    path: "./data/badger"
+    in_memory: false
+    sync_writes: true
+    value_log_file_size: 1024
+    num_compactors: 2
+    num_level_zero_tables: 5
+    num_level_zero_tables_stall: 10
+    value_log_load_size: 256
+
+  # Redis配置（远程缓存）
+  redis:
+    enabled: false  # 默认关闭，可以根据需要开启
+    address: "localhost:6379"
+    password: ""
+    db: 1  # 使用数据库1避免与其他应用冲突
+    pool_size: 10
+    min_idle_conns: 5
+    dial_timeout: "5s"
+    read_timeout: "3s"
+    write_timeout: "3s"
+    idle_timeout: "5m"
+    max_conn_age: "30m"
+
+# Token认证配置
+token:
+  # JWT签发配置
+  jwt:
+    enabled: true
+    secret_key: "demo-secret-key-for-testing"
+    issuer: "token-cache-demo"
+    expire_duration: "24h"
+    refresh_expire_duration: "168h"
+    algorithm: "HS256"
+
+  # Token验证配置
+  validation:
+    enabled: true
+    skip_expired_check: false
+    cache_strategy: "bigcache"  # 默认使用 BigCache，可改为 "badger" 或 "redis"
+    cache_key_prefix: "demo_token:"
+
+    # BigCache Token查询配置
+    bigcache:
+      enabled: true
+      life_window: "24h"
+      clean_window: "1h"
+      max_entries: 10000
+
+    # BadgerDB Token查询配置
+    badger:
+      enabled: true
+      path: "./data/tokens"
+      ttl: "24h"
+
+    # Redis Token查询配置
+    redis:
+      enabled: false
+      key_prefix: "demo:tokens:"
+      ttl: "24h"
+
+# 日志收集配置
+logging:
+  # 控制台输出
+  console:
+    enabled: true
+    level: "info"
+
+  # 文件日志输出
+  file:
+    enabled: true
+    path: "./logs/token_demo.log"
+    max_size: "100MB"
+    max_backups: 5
+    max_age: "7d"
+    compress: true
+
+# 其他应用参数
+settings:
+  port: 3000
+  read_timeout: "30s"
+  write_timeout: "30s"
+  max_connections: 1000
+  cache_strategy: "bigcache"

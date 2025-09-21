@@ -24,6 +24,38 @@ type UserReply struct {
 	Role string `json:"role" desc:"用户角色"`
 }
 
+// Token 测试相关结构体
+type TokenQueryArgs struct {
+	Token string `validate:"required" desc:"要查询的Token"`
+}
+
+type TokenQueryReply struct {
+	Valid   bool   `json:"valid" desc:"Token是否有效"`
+	Message string `json:"message" desc:"查询结果消息"`
+	Data    string `json:"data" desc:"Token关联的数据"`
+}
+
+type TokenLogoutArgs struct {
+	Token string `validate:"required" desc:"要删除的Token"`
+}
+
+type TokenLogoutReply struct {
+	Success bool   `json:"success" desc:"是否成功删除"`
+	Message string `json:"message" desc:"操作结果消息"`
+}
+
+type TokenBatchTestArgs struct {
+	Count int `validate:"min=1,max=1000" desc:"要创建的Token数量"`
+}
+
+type TokenBatchTestReply struct {
+	TotalCreated int      `json:"total_created" desc:"成功创建的Token数量"`
+	TotalErrors  int      `json:"total_errors" desc:"创建失败的Token数量"`
+	Tokens       []string `json:"tokens" desc:"创建成功的Token列表"`
+	Errors       []string `json:"errors" desc:"错误信息列表"`
+	Message      string   `json:"message" desc:"批量测试结果消息"`
+}
+
 // 复杂嵌套结构示例
 
 // Address 地址信息

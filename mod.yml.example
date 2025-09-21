@@ -131,6 +131,43 @@ logging:
     max_age: "30d"
     compress: true
 
+# Token认证配置
+token:
+  # JWT签发配置
+  jwt:
+    enabled: true
+    secret_key: "your-secret-key-here"    # JWT签名密钥
+    issuer: "my-application"              # 签发者
+    expire_duration: "24h"                # Token过期时间
+    refresh_expire_duration: "168h"       # 刷新Token过期时间(7天)
+    algorithm: "HS256"                    # 签名算法: HS256, HS384, HS512
+
+  # Token验证配置
+  validation:
+    enabled: true                         # 是否启用Token验证
+    skip_expired_check: false             # 是否跳过过期检查
+    cache_strategy: "bigcache"            # 缓存查询策略: bigcache, badger, redis
+    cache_key_prefix: "token:"            # 缓存键前缀
+
+    # BigCache Token查询配置
+    bigcache:
+      enabled: true
+      life_window: "24h"                  # Token缓存存活时间
+      clean_window: "1h"                  # 清理间隔
+      max_entries: 10000                  # 最大Token缓存数量
+
+    # BadgerDB Token查询配置
+    badger:
+      enabled: true
+      path: "./data/tokens"               # Token存储路径
+      ttl: "24h"                          # Token存储TTL
+
+    # Redis Token查询配置
+    redis:
+      enabled: false
+      key_prefix: "app:tokens:"           # Redis键前缀
+      ttl: "24h"                          # Token在Redis中的TTL
+
 # 其他应用参数
 settings:
   port: 8080                       # 服务监听端口
