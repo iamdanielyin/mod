@@ -2293,7 +2293,7 @@ func (app *App) generateDocsHTML(docData DocData) string {
         <!-- 侧边栏遮罩层 -->
         <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 
-        <div class="sidebar collapsed" id="sidebar">
+        <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <h1>{{.AppInfo.DisplayName}}</h1>
                 {{if .AppInfo.Version}}<div class="version">v{{.AppInfo.Version}}</div>{{end}}
@@ -2314,7 +2314,7 @@ func (app *App) generateDocsHTML(docData DocData) string {
             </div>
         </div>
 
-        <div class="main-content sidebar-collapsed" id="mainContent">
+        <div class="main-content" id="mainContent">
             {{range .Groups}}
             {{range .Services}}
             <div class="api-section" id="service-{{.Name}}">
@@ -2584,16 +2584,18 @@ func (app *App) generateDocsHTML(docData DocData) string {
             }
         });
 
-        // 初始化状态 - 默认折叠侧边栏
+        // 初始化状态 - 默认展开侧边栏
         document.addEventListener('DOMContentLoaded', function() {
             const sidebar = document.getElementById('sidebar');
             const mainContent = document.getElementById('mainContent');
             const topHeader = document.querySelector('.top-header');
+            const menuToggle = document.getElementById('menuToggle');
 
-            // 默认状态是折叠的
-            sidebar.classList.add('collapsed');
-            mainContent.classList.add('sidebar-collapsed');
-            topHeader.classList.add('sidebar-collapsed');
+            // 默认状态是展开的
+            sidebar.classList.remove('collapsed');
+            mainContent.classList.remove('sidebar-collapsed');
+            topHeader.classList.remove('sidebar-collapsed');
+            menuToggle.classList.add('open'); // 设置菜单按钮为打开状态
         });
 
         // 展开/折叠嵌套字段
