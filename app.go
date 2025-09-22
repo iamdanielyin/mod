@@ -1569,6 +1569,95 @@ func (app *App) generateDocsHTML(docData DocData) string {
         .container {
             display: flex;
             height: 100vh;
+            flex-direction: column;
+        }
+
+        .top-header {
+            position: fixed;
+            top: 0;
+            left: 299px;
+            right: 0;
+            height: 75px;
+            background: #001529;
+            border-bottom: none;
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            transition: left 0.3s ease;
+			height: 66px;
+    		box-sizing: border-box;
+        }
+
+        .top-header.sidebar-collapsed {
+            left: 0;
+        }
+
+        .menu-toggle {
+            background: #001529;
+            border: none;
+            border-radius: 4px;
+            padding: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+        }
+
+        .menu-toggle:hover {
+            background: #1890ff;
+        }
+
+        .menu-toggle-icon {
+            width: 20px;
+            height: 14px;
+            position: relative;
+            transform: rotate(0deg);
+            transition: .3s ease-in-out;
+        }
+
+        .menu-toggle-icon span {
+            display: block;
+            position: absolute;
+            height: 2px;
+            width: 100%;
+            background: #fff;
+            border-radius: 1px;
+            opacity: 1;
+            left: 0;
+            transform: rotate(0deg);
+            transition: .25s ease-in-out;
+        }
+
+        .menu-toggle-icon span:nth-child(1) {
+            top: 0px;
+        }
+
+        .menu-toggle-icon span:nth-child(2) {
+            top: 6px;
+        }
+
+        .menu-toggle-icon span:nth-child(3) {
+            top: 12px;
+        }
+
+        .menu-toggle.open .menu-toggle-icon span:nth-child(1) {
+            top: 6px;
+            transform: rotate(135deg);
+        }
+
+        .menu-toggle.open .menu-toggle-icon span:nth-child(2) {
+            opacity: 0;
+            left: -20px;
+        }
+
+        .menu-toggle.open .menu-toggle-icon span:nth-child(3) {
+            top: 6px;
+            transform: rotate(-135deg);
         }
 
         .sidebar {
@@ -1581,14 +1670,41 @@ func (app *App) generateDocsHTML(docData DocData) string {
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            z-index: 1000;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-overlay.show {
+            opacity: 1;
+            visibility: visible;
         }
 
         .sidebar-header {
             padding: 16px 24px;
-            border-bottom: 1px solid #f0f0f0;
             background: #001529;
             color: #fff;
             flex-shrink: 0;
+    		height: 66px;
+    		box-sizing: border-box;
+    		display: flex;
+    		align-items: center;
         }
 
         .sidebar-content {
@@ -1600,7 +1716,7 @@ func (app *App) generateDocsHTML(docData DocData) string {
         .sidebar-header h1 {
             font-size: 16px;
             font-weight: 600;
-            margin: 0 0 4px 0;
+            margin: 0;
         }
 
         .version {
@@ -1659,8 +1775,14 @@ func (app *App) generateDocsHTML(docData DocData) string {
         .main-content {
             flex: 1;
             margin-left: 300px;
+            margin-top: 75px;
             padding: 24px;
             overflow-y: auto;
+            transition: margin-left 0.3s ease;
+        }
+
+        .main-content.sidebar-collapsed {
+            margin-left: 0;
         }
 
         .api-section {
@@ -2021,77 +2143,27 @@ func (app *App) generateDocsHTML(docData DocData) string {
         }
 
         @media (max-width: 768px) {
-            .container {
-                flex-direction: column;
+            .top-header {
+                left: 0;
+                padding: 0 16px;
             }
 
-            .sidebar {
-                position: relative;
-                width: 100%;
-                height: auto;
-                max-height: 300px;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-                border-right: none;
-                border-bottom: 1px solid #f0f0f0;
-                z-index: 100;
-                display: flex;
-                flex-direction: column;
-                overflow: hidden;
+            .menu-toggle {
+                width: 36px;
+                height: 36px;
             }
 
-            .sidebar.collapsed {
-                max-height: 60px;
-            }
-
-            .sidebar-header {
-                position: relative;
-                cursor: pointer;
-                user-select: none;
-                flex-shrink: 0;
-                background: #001529;
-                border-bottom: 1px solid #f0f0f0;
-            }
-
-            .sidebar-content {
-                flex: 1;
-                overflow-y: auto;
-                transition: opacity 0.3s ease;
-                background: white;
-            }
-
-            .sidebar-header::after {
-                content: '';
-                position: absolute;
-                right: 16px;
-                top: 50%;
-                transform: translateY(-50%) rotate(90deg);
-                width: 20px;
-                height: 14px;
-                background-image:
-                    linear-gradient(to right, white 0%, white 100%),
-                    linear-gradient(to right, white 0%, white 100%),
-                    linear-gradient(to right, white 0%, white 100%);
-                background-size: 100% 2px;
-                background-position:
-                    0 0,
-                    0 6px,
-                    0 12px;
-                background-repeat: no-repeat;
-                transition: transform 0.3s ease;
-            }
-
-            .sidebar.collapsed .sidebar-header::after {
-                transform: translateY(-50%) rotate(0deg);
-            }
-
-            .sidebar.collapsed .sidebar-content {
-                opacity: 0;
-                pointer-events: none;
+            .sidebar-overlay.show {
+                display: block;
             }
 
             .main-content {
                 margin-left: 0;
                 padding: 16px;
+            }
+
+            .main-content.sidebar-collapsed {
+                margin-left: 0;
             }
 
             .api-section {
@@ -2206,8 +2278,23 @@ func (app *App) generateDocsHTML(docData DocData) string {
 </head>
 <body>
     <div class="container">
-        <div class="sidebar" id="sidebar">
-            <div class="sidebar-header" onclick="toggleSidebar()">
+        <!-- 顶部固定区域 -->
+        <div class="top-header">
+            <!-- 汉堡包菜单按钮 -->
+            <button class="menu-toggle" id="menuToggle" onclick="toggleSidebar()">
+                <div class="menu-toggle-icon">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </button>
+        </div>
+
+        <!-- 侧边栏遮罩层 -->
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+        <div class="sidebar collapsed" id="sidebar">
+            <div class="sidebar-header">
                 <h1>{{.AppInfo.DisplayName}}</h1>
                 {{if .AppInfo.Version}}<div class="version">v{{.AppInfo.Version}}</div>{{end}}
             </div>
@@ -2227,7 +2314,7 @@ func (app *App) generateDocsHTML(docData DocData) string {
             </div>
         </div>
 
-        <div class="main-content">
+        <div class="main-content sidebar-collapsed" id="mainContent">
             {{range .Groups}}
             {{range .Services}}
             <div class="api-section" id="service-{{.Name}}">
@@ -2407,10 +2494,9 @@ func (app *App) generateDocsHTML(docData DocData) string {
                 });
                 event.target.classList.add('active');
 
-                // 移动端自动折叠侧边栏
+                // 移动端自动关闭侧边栏
                 if (window.innerWidth <= 768) {
-                    const sidebar = document.getElementById('sidebar');
-                    sidebar.classList.add('collapsed');
+                    closeSidebar();
                 }
             }
         }
@@ -2440,32 +2526,74 @@ func (app *App) generateDocsHTML(docData DocData) string {
         window.addEventListener('scroll', updateActiveService);
         document.addEventListener('DOMContentLoaded', updateActiveService);
 
-        // 移动端侧边栏折叠功能
+        // 切换侧边栏显示/隐藏
         function toggleSidebar() {
-            // 只在移动端有效
-            if (window.innerWidth <= 768) {
-                const sidebar = document.getElementById('sidebar');
-                sidebar.classList.toggle('collapsed');
+            const sidebar = document.getElementById('sidebar');
+            const menuToggle = document.getElementById('menuToggle');
+            const overlay = document.getElementById('sidebarOverlay');
+            const mainContent = document.getElementById('mainContent');
+            const topHeader = document.querySelector('.top-header');
+
+            const isCollapsed = sidebar.classList.contains('collapsed');
+
+            if (isCollapsed) {
+                // 显示侧边栏
+                sidebar.classList.remove('collapsed');
+                menuToggle.classList.add('open');
+                mainContent.classList.remove('sidebar-collapsed');
+                topHeader.classList.remove('sidebar-collapsed');
+
+                // 移动端显示遮罩层
+                if (window.innerWidth <= 768) {
+                    overlay.classList.add('show');
+                }
+            } else {
+                // 隐藏侧边栏
+                closeSidebar();
             }
         }
 
-        // 窗口大小变化时重置侧边栏状态
+        // 关闭侧边栏
+        function closeSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const menuToggle = document.getElementById('menuToggle');
+            const overlay = document.getElementById('sidebarOverlay');
+            const mainContent = document.getElementById('mainContent');
+            const topHeader = document.querySelector('.top-header');
+
+            sidebar.classList.add('collapsed');
+            menuToggle.classList.remove('open');
+            mainContent.classList.add('sidebar-collapsed');
+            topHeader.classList.add('sidebar-collapsed');
+            overlay.classList.remove('show');
+        }
+
+        // 窗口大小变化时的处理
         window.addEventListener('resize', function() {
             const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+
             if (window.innerWidth > 768) {
-                sidebar.classList.remove('collapsed');
-            } else if (!sidebar.classList.contains('collapsed')) {
-                // 移动端默认折叠状态
-                sidebar.classList.add('collapsed');
+                // 桌面端隐藏遮罩层
+                overlay.classList.remove('show');
+            } else {
+                // 移动端如果侧边栏显示，则显示遮罩层
+                if (!sidebar.classList.contains('collapsed')) {
+                    overlay.classList.add('show');
+                }
             }
         });
 
-        // 初始化移动端状态
+        // 初始化状态 - 默认折叠侧边栏
         document.addEventListener('DOMContentLoaded', function() {
-            if (window.innerWidth <= 768) {
-                const sidebar = document.getElementById('sidebar');
-                sidebar.classList.add('collapsed');
-            }
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            const topHeader = document.querySelector('.top-header');
+
+            // 默认状态是折叠的
+            sidebar.classList.add('collapsed');
+            mainContent.classList.add('sidebar-collapsed');
+            topHeader.classList.add('sidebar-collapsed');
         });
 
         // 展开/折叠嵌套字段
