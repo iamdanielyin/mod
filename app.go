@@ -853,8 +853,8 @@ func (app *App) SetToken(token string, data interface{}) error {
 
 			// 解析 TTL
 			var ttl time.Duration
-			if config.Cache.Badger.TTL != "" {
-				ttl, err = time.ParseDuration(config.Cache.Badger.TTL)
+			if app.cfg.ModConfig.Cache.Badger.TTL != "" {
+				ttl, err = time.ParseDuration(app.cfg.ModConfig.Cache.Badger.TTL)
 				if err != nil {
 					app.logger.WithError(err).Warn("Invalid BadgerDB TTL, using default 24h")
 					ttl = 24 * time.Hour
@@ -901,9 +901,9 @@ func (app *App) SetToken(token string, data interface{}) error {
 
 			// 解析 TTL
 			var ttl time.Duration
-			if config.Cache.Redis.TTL != "" {
+			if app.cfg.ModConfig.Cache.Redis.TTL != "" {
 				var err error
-				ttl, err = time.ParseDuration(config.Cache.Redis.TTL)
+				ttl, err = time.ParseDuration(app.cfg.ModConfig.Cache.Redis.TTL)
 				if err != nil {
 					app.logger.WithError(err).Warn("Invalid Redis TTL, using default 24h")
 					ttl = 24 * time.Hour
