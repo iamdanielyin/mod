@@ -57,6 +57,7 @@ type ModConfig struct {
 			NumLevelZeroTables      int    `yaml:"num_level_zero_tables"`
 			NumLevelZeroTablesStall int    `yaml:"num_level_zero_tables_stall"`
 			ValueLogLoadSize        int    `yaml:"value_log_load_size"`
+			TTL                     string `yaml:"ttl"` // Token 过期时间
 		} `yaml:"badger"`
 
 		Redis struct {
@@ -71,6 +72,7 @@ type ModConfig struct {
 			WriteTimeout string `yaml:"write_timeout"`
 			IdleTimeout  string `yaml:"idle_timeout"`
 			MaxConnAge   string `yaml:"max_conn_age"`
+			TTL          string `yaml:"ttl"` // Token 过期时间
 		} `yaml:"redis"`
 	} `yaml:"cache"`
 
@@ -158,27 +160,8 @@ type ModConfig struct {
 		Validation struct {
 			Enabled          bool   `yaml:"enabled"`
 			SkipExpiredCheck bool   `yaml:"skip_expired_check"`
-			CacheStrategy    string `yaml:"cache_strategy"`
+			CacheStrategy    string `yaml:"cache_strategy"` // "bigcache", "badger", "redis"
 			CacheKeyPrefix   string `yaml:"cache_key_prefix"`
-
-			BigCache struct {
-				Enabled     bool   `yaml:"enabled"`
-				LifeWindow  string `yaml:"life_window"`
-				CleanWindow string `yaml:"clean_window"`
-				MaxEntries  int    `yaml:"max_entries"`
-			} `yaml:"bigcache"`
-
-			Badger struct {
-				Enabled bool   `yaml:"enabled"`
-				Path    string `yaml:"path"`
-				TTL     string `yaml:"ttl"`
-			} `yaml:"badger"`
-
-			Redis struct {
-				Enabled   bool   `yaml:"enabled"`
-				KeyPrefix string `yaml:"key_prefix"`
-				TTL       string `yaml:"ttl"`
-			} `yaml:"redis"`
 		} `yaml:"validation"`
 	} `yaml:"token"`
 
@@ -335,14 +318,19 @@ func New(config ...Config) *App {
 
 	// 初始化 Token 缓存
 	if fileConfig != nil && fileConfig.Token.Validation.Enabled {
-		if fileConfig.Token.Validation.BigCache.Enabled {
-			app.initTokenCache(fileConfig)
-		}
-		if fileConfig.Token.Validation.Badger.Enabled {
-			app.initBadgerDB(fileConfig)
-		}
-		if fileConfig.Token.Validation.Redis.Enabled {
-			app.initRedisClient(fileConfig)
+		switch fileConfig.Token.Validation.CacheStrategy {
+		case "bigcache":
+			if fileConfig.Cache.BigCache.Enabled {
+				app.initTokenCache(fileConfig)
+			}
+		case "badger":
+			if fileConfig.Cache.Badger.Enabled {
+				app.initBadgerDB(fileConfig)
+			}
+		case "redis":
+			if fileConfig.Cache.Redis.Enabled {
+				app.initRedisClient(fileConfig)
+			}
 		}
 	}
 
@@ -354,37 +342,37 @@ func New(config ...Config) *App {
 
 // initTokenCache 初始化 Token 缓存
 func (app *App) initTokenCache(config *ModConfig) {
-	if !config.Token.Validation.BigCache.Enabled {
+	if !config.Cache.BigCache.Enabled {
 		return
 	}
 
 	// 解析配置参数
-	lifeWindow, err := time.ParseDuration(config.Token.Validation.BigCache.LifeWindow)
+	lifeWindow, err := time.ParseDuration(config.Cache.BigCache.LifeWindow)
 	if err != nil {
 		app.logger.WithError(err).Warn("Invalid BigCache life_window, using default 24h")
 		lifeWindow = 24 * time.Hour
 	}
 
-	cleanWindow, err := time.ParseDuration(config.Token.Validation.BigCache.CleanWindow)
+	cleanWindow, err := time.ParseDuration(config.Cache.BigCache.CleanWindow)
 	if err != nil {
 		app.logger.WithError(err).Warn("Invalid BigCache clean_window, using default 1h")
 		cleanWindow = time.Hour
 	}
 
-	maxEntries := config.Token.Validation.BigCache.MaxEntries
+	maxEntries := config.Cache.BigCache.MaxEntriesInWindow
 	if maxEntries <= 0 {
 		maxEntries = 10000 // 默认值
 	}
 
 	// 创建 BigCache 配置
 	bigCacheConfig := bigcache.Config{
-		Shards:             1024,
+		Shards:             config.Cache.BigCache.Shards,
 		LifeWindow:         lifeWindow,
 		CleanWindow:        cleanWindow,
 		MaxEntriesInWindow: maxEntries,
-		MaxEntrySize:       256, // Token 一般不会太长
-		Verbose:            false,
-		HardMaxCacheSize:   0, // 不限制内存大小
+		MaxEntrySize:       config.Cache.BigCache.MaxEntrySize,
+		Verbose:            config.Cache.BigCache.Verbose,
+		HardMaxCacheSize:   config.Cache.BigCache.HardMaxCacheSize,
 		OnRemove:           nil,
 		OnRemoveWithReason: nil,
 	}
@@ -402,11 +390,11 @@ func (app *App) initTokenCache(config *ModConfig) {
 
 // initBadgerDB 初始化 BadgerDB
 func (app *App) initBadgerDB(config *ModConfig) {
-	if !config.Token.Validation.Badger.Enabled {
+	if !config.Cache.Badger.Enabled {
 		return
 	}
 
-	dbPath := config.Token.Validation.Badger.Path
+	dbPath := config.Cache.Badger.Path
 	if dbPath == "" {
 		dbPath = "./data/tokens" // 默认路径
 	}
@@ -414,6 +402,21 @@ func (app *App) initBadgerDB(config *ModConfig) {
 	// 创建 BadgerDB 选项
 	opts := badger.DefaultOptions(dbPath)
 	opts.Logger = &badgerLogger{logger: app.logger} // 使用自定义 logger
+	opts.InMemory = config.Cache.Badger.InMemory
+	opts.SyncWrites = config.Cache.Badger.SyncWrites
+
+	if config.Cache.Badger.ValueLogFileSize > 0 {
+		opts.ValueLogFileSize = int64(config.Cache.Badger.ValueLogFileSize)
+	}
+	if config.Cache.Badger.NumCompactors > 0 {
+		opts.NumCompactors = config.Cache.Badger.NumCompactors
+	}
+	if config.Cache.Badger.NumLevelZeroTables > 0 {
+		opts.NumLevelZeroTables = config.Cache.Badger.NumLevelZeroTables
+	}
+	if config.Cache.Badger.NumLevelZeroTablesStall > 0 {
+		opts.NumLevelZeroTablesStall = config.Cache.Badger.NumLevelZeroTablesStall
+	}
 
 	// 打开 BadgerDB
 	db, err := badger.Open(opts)
@@ -449,7 +452,7 @@ func (bl *badgerLogger) Debugf(f string, v ...interface{}) {
 
 // initRedisClient 初始化 Redis 客户端
 func (app *App) initRedisClient(config *ModConfig) {
-	if !config.Token.Validation.Redis.Enabled {
+	if !config.Cache.Redis.Enabled {
 		return
 	}
 
@@ -690,7 +693,7 @@ func (app *App) validateToken(token string) bool {
 	// 根据配置的缓存策略进行验证
 	switch config.CacheStrategy {
 	case "bigcache":
-		if config.BigCache.Enabled && app.tokenCache != nil {
+		if app.tokenCache != nil {
 			// 查询 BigCache 中是否存在该 token
 			_, err := app.tokenCache.Get(cacheKey)
 			if err != nil {
@@ -718,7 +721,7 @@ func (app *App) validateToken(token string) bool {
 			return true
 		}
 	case "badger":
-		if config.Badger.Enabled && app.badgerDB != nil {
+		if app.badgerDB != nil {
 			// 查询 BadgerDB 中是否存在该 token
 			err := app.badgerDB.View(func(txn *badger.Txn) error {
 				_, err := txn.Get([]byte(cacheKey))
@@ -750,18 +753,17 @@ func (app *App) validateToken(token string) bool {
 			return true
 		}
 	case "redis":
-		if config.Redis.Enabled && app.redisClient != nil {
+		if app.redisClient != nil {
 			// 查询 Redis 中是否存在该 token
-			redisKey := config.Redis.KeyPrefix + token
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 
-			exists, err := app.redisClient.Exists(ctx, redisKey).Result()
+			exists, err := app.redisClient.Exists(ctx, cacheKey).Result()
 			if err != nil {
 				// Redis 查询错误，记录日志但允许通过
 				app.logger.WithFields(logrus.Fields{
 					"token":     token,
-					"redis_key": redisKey,
+					"cache_key": cacheKey,
 					"error":     err.Error(),
 				}).Warn("Redis query error, allowing token validation to pass")
 				return true
@@ -770,7 +772,7 @@ func (app *App) validateToken(token string) bool {
 			if exists == 0 {
 				app.logger.WithFields(logrus.Fields{
 					"token":     token,
-					"redis_key": redisKey,
+					"cache_key": cacheKey,
 				}).Debug("Token not found in Redis")
 				return false
 			}
@@ -778,7 +780,7 @@ func (app *App) validateToken(token string) bool {
 			// Token 存在，验证通过
 			app.logger.WithFields(logrus.Fields{
 				"token":     token,
-				"redis_key": redisKey,
+				"cache_key": cacheKey,
 			}).Debug("Token validated successfully in Redis")
 			return true
 		}
@@ -806,7 +808,7 @@ func (app *App) SetToken(token string, data interface{}) error {
 
 	switch config.CacheStrategy {
 	case "bigcache":
-		if config.BigCache.Enabled && app.tokenCache != nil {
+		if app.tokenCache != nil {
 			// 将数据序列化为 JSON
 			var value []byte
 			var err error
@@ -836,7 +838,7 @@ func (app *App) SetToken(token string, data interface{}) error {
 			return nil
 		}
 	case "badger":
-		if config.Badger.Enabled && app.badgerDB != nil {
+		if app.badgerDB != nil {
 			// 将数据序列化为 JSON
 			var value []byte
 			var err error
@@ -851,8 +853,8 @@ func (app *App) SetToken(token string, data interface{}) error {
 
 			// 解析 TTL
 			var ttl time.Duration
-			if config.Badger.TTL != "" {
-				ttl, err = time.ParseDuration(config.Badger.TTL)
+			if config.Cache.Badger.TTL != "" {
+				ttl, err = time.ParseDuration(config.Cache.Badger.TTL)
 				if err != nil {
 					app.logger.WithError(err).Warn("Invalid BadgerDB TTL, using default 24h")
 					ttl = 24 * time.Hour
@@ -884,7 +886,7 @@ func (app *App) SetToken(token string, data interface{}) error {
 			return nil
 		}
 	case "redis":
-		if config.Redis.Enabled && app.redisClient != nil {
+		if app.redisClient != nil {
 			// 将数据序列化为 JSON
 			var value string
 			if data != nil {
@@ -899,9 +901,9 @@ func (app *App) SetToken(token string, data interface{}) error {
 
 			// 解析 TTL
 			var ttl time.Duration
-			if config.Redis.TTL != "" {
+			if config.Cache.Redis.TTL != "" {
 				var err error
-				ttl, err = time.ParseDuration(config.Redis.TTL)
+				ttl, err = time.ParseDuration(config.Cache.Redis.TTL)
 				if err != nil {
 					app.logger.WithError(err).Warn("Invalid Redis TTL, using default 24h")
 					ttl = 24 * time.Hour
@@ -911,15 +913,14 @@ func (app *App) SetToken(token string, data interface{}) error {
 			}
 
 			// 存储到 Redis
-			redisKey := config.Redis.KeyPrefix + token
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 
-			err := app.redisClient.Set(ctx, redisKey, value, ttl).Err()
+			err := app.redisClient.Set(ctx, cacheKey, value, ttl).Err()
 			if err != nil {
 				app.logger.WithFields(logrus.Fields{
 					"token":     token,
-					"redis_key": redisKey,
+					"cache_key": cacheKey,
 					"error":     err.Error(),
 				}).Error("Failed to set token in Redis")
 				return fmt.Errorf("failed to set token in Redis: %w", err)
@@ -927,7 +928,7 @@ func (app *App) SetToken(token string, data interface{}) error {
 
 			app.logger.WithFields(logrus.Fields{
 				"token":     token,
-				"redis_key": redisKey,
+				"cache_key": cacheKey,
 				"ttl":       ttl.String(),
 			}).Debug("Token set successfully in Redis")
 			return nil
@@ -949,7 +950,7 @@ func (app *App) RemoveToken(token string) error {
 
 	switch config.CacheStrategy {
 	case "bigcache":
-		if config.BigCache.Enabled && app.tokenCache != nil {
+		if app.tokenCache != nil {
 			err := app.tokenCache.Delete(cacheKey)
 			if err != nil && err != bigcache.ErrEntryNotFound {
 				app.logger.WithFields(logrus.Fields{
@@ -967,7 +968,7 @@ func (app *App) RemoveToken(token string) error {
 			return nil
 		}
 	case "badger":
-		if config.Badger.Enabled && app.badgerDB != nil {
+		if app.badgerDB != nil {
 			err := app.badgerDB.Update(func(txn *badger.Txn) error {
 				return txn.Delete([]byte(cacheKey))
 			})
@@ -988,16 +989,15 @@ func (app *App) RemoveToken(token string) error {
 			return nil
 		}
 	case "redis":
-		if config.Redis.Enabled && app.redisClient != nil {
-			redisKey := config.Redis.KeyPrefix + token
+		if app.redisClient != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 
-			deleted, err := app.redisClient.Del(ctx, redisKey).Result()
+			deleted, err := app.redisClient.Del(ctx, cacheKey).Result()
 			if err != nil {
 				app.logger.WithFields(logrus.Fields{
 					"token":     token,
-					"redis_key": redisKey,
+					"cache_key": cacheKey,
 					"error":     err.Error(),
 				}).Error("Failed to remove token from Redis")
 				return fmt.Errorf("failed to remove token from Redis: %w", err)
@@ -1005,7 +1005,7 @@ func (app *App) RemoveToken(token string) error {
 
 			app.logger.WithFields(logrus.Fields{
 				"token":     token,
-				"redis_key": redisKey,
+				"cache_key": cacheKey,
 				"deleted":   deleted,
 			}).Debug("Token removed successfully from Redis")
 			return nil
@@ -1027,7 +1027,7 @@ func (app *App) GetTokenData(token string) ([]byte, error) {
 
 	switch config.CacheStrategy {
 	case "bigcache":
-		if config.BigCache.Enabled && app.tokenCache != nil {
+		if app.tokenCache != nil {
 			data, err := app.tokenCache.Get(cacheKey)
 			if err != nil {
 				if err == bigcache.ErrEntryNotFound {
@@ -1038,7 +1038,7 @@ func (app *App) GetTokenData(token string) ([]byte, error) {
 			return data, nil
 		}
 	case "badger":
-		if config.Badger.Enabled && app.badgerDB != nil {
+		if app.badgerDB != nil {
 			var data []byte
 			err := app.badgerDB.View(func(txn *badger.Txn) error {
 				item, err := txn.Get([]byte(cacheKey))
@@ -1060,12 +1060,11 @@ func (app *App) GetTokenData(token string) ([]byte, error) {
 			return data, nil
 		}
 	case "redis":
-		if config.Redis.Enabled && app.redisClient != nil {
-			redisKey := config.Redis.KeyPrefix + token
+		if app.redisClient != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 
-			val, err := app.redisClient.Get(ctx, redisKey).Result()
+			val, err := app.redisClient.Get(ctx, cacheKey).Result()
 			if err != nil {
 				if err == redis.Nil {
 					return nil, fmt.Errorf("token not found")

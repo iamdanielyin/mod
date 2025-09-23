@@ -32,6 +32,7 @@ cache:
     num_level_zero_tables: 5
     num_level_zero_tables_stall: 10
     value_log_load_size: 256
+    ttl: "24h"                     # Token过期时间
 
   # Redis配置（远程缓存）
   redis:
@@ -46,6 +47,7 @@ cache:
     write_timeout: "3s"
     idle_timeout: "5m"
     max_conn_age: "30m"
+    ttl: "24h"                     # Token过期时间
 
 # Token认证配置
 token:
@@ -64,25 +66,6 @@ token:
     skip_expired_check: false
     cache_strategy: "bigcache"  # 默认使用 BigCache，可改为 "badger" 或 "redis"
     cache_key_prefix: "demo_token:"
-
-    # BigCache Token查询配置
-    bigcache:
-      enabled: true
-      life_window: "24h"
-      clean_window: "1h"
-      max_entries: 10000
-
-    # BadgerDB Token查询配置
-    badger:
-      enabled: true
-      path: "./data/tokens"
-      ttl: "24h"
-
-    # Redis Token查询配置
-    redis:
-      enabled: false
-      key_prefix: "demo:tokens:"
-      ttl: "24h"
 
 # 日志收集配置
 logging:

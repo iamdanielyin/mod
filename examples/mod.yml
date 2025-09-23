@@ -29,6 +29,7 @@ cache:
     num_level_zero_tables: 5       # Level 0表数量
     num_level_zero_tables_stall: 10 # Level 0表停滞数量
     value_log_load_size: 256       # 值日志加载大小（MB）
+    ttl: "24h"                     # Token过期时间
 
   # Redis配置（远程缓存）
   redis:
@@ -43,6 +44,7 @@ cache:
     write_timeout: "3s"            # 写入超时时间
     idle_timeout: "5m"             # 空闲连接超时时间
     max_conn_age: "30m"            # 连接最大存活时间
+    ttl: "24h"                     # Token过期时间
 
 # RSA密钥配置（用于参数解密）
 rsa_keys:
@@ -144,25 +146,6 @@ token:
     skip_expired_check: false             # 是否跳过过期检查
     cache_strategy: "bigcache"            # 缓存查询策略: bigcache, badger, redis
     cache_key_prefix: "token:"            # 缓存键前缀
-
-    # BigCache Token查询配置
-    bigcache:
-      enabled: true
-      life_window: "24h"                  # Token缓存存活时间
-      clean_window: "1h"                  # 清理间隔
-      max_entries: 10000                  # 最大Token缓存数量
-
-    # BadgerDB Token查询配置
-    badger:
-      enabled: true
-      path: "./data/tokens"               # Token存储路径
-      ttl: "24h"                          # Token存储TTL
-
-    # Redis Token查询配置
-    redis:
-      enabled: false
-      key_prefix: "app:tokens:"           # Redis键前缀
-      ttl: "24h"                          # Token在Redis中的TTL
 
 # 其他应用参数
 settings:
