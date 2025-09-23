@@ -118,34 +118,34 @@ func MakeHandler[I any, O any](handler func(ctx *Context, args *I, reply *O) err
 	}
 }
 
-type IntlError struct {
+type StdReply struct {
 	code   int
 	msg    string
 	detail string
 }
 
-func (r IntlError) Error() string {
+func (r StdReply) Error() string {
 	return fmt.Sprintf("%s (%d)", r.msg, r.code)
 }
 
-func (r IntlError) Code() int {
+func (r StdReply) Code() int {
 	return r.code
 }
 
-func (r IntlError) Msg() string {
+func (r StdReply) Msg() string {
 	return r.msg
 }
 
-func (r IntlError) Detail() string {
+func (r StdReply) Detail() string {
 	return r.detail
 }
 
 func Reply(code int, msg string) error {
-	return &IntlError{code: code, msg: msg}
+	return &StdReply{code: code, msg: msg}
 }
 
 func ReplyWithDetail(code int, msg, detail string) error {
-	return &IntlError{code: code, msg: msg, detail: detail}
+	return &StdReply{code: code, msg: msg, detail: detail}
 }
 
 // 统一响应格式

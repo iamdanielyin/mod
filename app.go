@@ -614,7 +614,7 @@ func (app *App) Register(svc Service) error {
 				"rid":     ctx.GetRequestID(),
 			}).Error("Service handler failed")
 
-			if intlErr, ok := err.(*IntlError); ok {
+			if intlErr, ok := err.(*StdReply); ok {
 				resp := NewErrorResponse(ctx, intlErr.Code(), intlErr.Msg(), intlErr.Detail())
 				return fc.Status(intlErr.Code()).JSON(resp)
 			}
@@ -2344,6 +2344,10 @@ func (app *App) generateDocsHTML(docData DocData) string {
                             <span class="meta-label">认证:</span>
                             <span class="meta-value auth-status-badge {{if .SkipAuth}}auth-not-required{{else}}auth-required{{end}}">{{if .SkipAuth}}不需要{{else}}需要{{end}}</span>
                         </div>
+                        <div class="meta-item">
+                            <span class="meta-label">返回格式:</span>
+                            <span class="meta-value auth-status-badge {{if .ReturnRaw}}auth-not-required{{else}}auth-required{{end}}">{{if .ReturnRaw}}原始格式{{else}}标准格式{{end}}</span>
+                        </div>
                     </div>
                     {{if .Description}}
                     <div class="api-description">{{.Description}}</div>
@@ -2380,7 +2384,87 @@ func (app *App) generateDocsHTML(docData DocData) string {
 
                     {{if .OutputFields}}
                     <div class="params-section">
-                        <div class="section-title">返回参数</div>
+                        <div class="section-title">返回参数{{if not .ReturnRaw}} (标准格式){{else}} (原始格式){{end}}</div>
+                        {{if not .ReturnRaw}}
+                        <div class="return-format-note">
+                            <div style="margin-bottom: 12px; padding: 8px; background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 4px; font-size: 12px; color: #52c41a;">
+                                <strong>标准返回格式：</strong>返回数据被包装在统一的响应结构中
+                            </div>
+                        </div>
+                        <table class="params-table">
+                            <thead>
+                                <tr>
+                                    <th>参数名</th>
+                                    <th>类型</th>
+                                    <th>描述</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <div class="field-name-box">
+                                            <span class="expand-btn-placeholder"></span>
+                                            <span class="field-name">code</span>
+                                        </div>
+                                    </td>
+                                    <td><span class="field-type">int</span></td>
+                                    <td>响应状态码，0表示成功</td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="field-name-box">
+                                            <span class="expand-btn-placeholder"></span>
+                                            <span class="field-name">msg</span>
+                                        </div>
+                                    </td>
+                                    <td><span class="field-type">string</span></td>
+                                    <td>响应消息</td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="field-name-box">
+                                            {{if .OutputFields}}
+                                            <button class="expand-btn" onclick="toggleNested(this)">+</button>
+                                            {{else}}
+                                            <span class="expand-btn-placeholder"></span>
+                                            {{end}}
+                                            <span class="field-name">data</span>
+                                        </div>
+                                    </td>
+                                    <td><span class="field-type">object</span></td>
+                                    <td>实际业务数据</td>
+                                </tr>
+                                {{range .OutputFields}}
+                                {{template "renderOutputFieldNested" .}}
+                                {{end}}
+                                <tr>
+                                    <td>
+                                        <div class="field-name-box">
+                                            <span class="expand-btn-placeholder"></span>
+                                            <span class="field-name">rid</span>
+                                        </div>
+                                    </td>
+                                    <td><span class="field-type">string</span></td>
+                                    <td>请求ID</td>
+                                </tr>
+                                <tr style="display: none;">
+                                    <td>
+                                        <div class="field-name-box">
+                                            <span class="expand-btn-placeholder"></span>
+                                            <span class="field-name">detail</span>
+                                        </div>
+                                    </td>
+                                    <td><span class="field-type">string</span></td>
+                                    <td>错误详情（仅错误时存在）</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        {{else}}
+                        <div class="return-format-note">
+                            <div style="margin-bottom: 12px; padding: 8px; background: #fff7e6; border: 1px solid #ffd591; border-radius: 4px; font-size: 12px; color: #fa8c16;">
+                                <strong>原始返回格式：</strong>直接返回业务数据，不包装在标准响应结构中
+                            </div>
+                        </div>
                         <table class="params-table">
                             <thead>
                                 <tr>
@@ -2395,6 +2479,7 @@ func (app *App) generateDocsHTML(docData DocData) string {
                                 {{end}}
                             </tbody>
                         </table>
+                        {{end}}
                     </div>
                     {{else}}
                     <div class="params-section">
@@ -2711,6 +2796,57 @@ func (app *App) generateDocsHTML(docData DocData) string {
     {{end}}
     {{end}}
 
+    {{define "renderOutputFieldNested"}}
+    <tr class="nested-row nested-field level-1" style="display: none;">
+        <td>
+            <div class="field-name-box" style="margin-left: 20px;">
+                {{if .Children}}
+                <button class="expand-btn" onclick="toggleNested(this)">+</button>
+                {{else}}
+                <span class="expand-btn-placeholder"></span>
+                {{end}}
+                <span class="field-name" onclick="copyFieldName('{{.Name}}', this)" title="点击复制参数名">{{.Name}}</span>
+                <button class="copy-btn copy-btn-field" onclick="copyToClipboard('{{.Name}}', this)" title="复制参数名">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                    </svg>
+                </button>
+            </div>
+        </td>
+        <td><span class="field-type">{{.Type}}</span></td>
+        <td>{{if .Description}}{{.Description}}{{else}}-{{end}}</td>
+    </tr>
+    {{range .Children}}
+    {{template "renderOutputFieldNestedChild" .}}
+    {{end}}
+    {{end}}
+
+    {{define "renderOutputFieldNestedChild"}}
+    <tr class="nested-row nested-field level-{{add .Level 1}}" style="display: none;">
+        <td>
+            <div class="field-name-box" style="margin-left: {{mul (add .Level 1) 20}}px;">
+                {{if .Children}}
+                <button class="expand-btn" onclick="toggleNested(this)">+</button>
+                {{else}}
+                <span class="expand-btn-placeholder"></span>
+                {{end}}
+                <span class="field-name" onclick="copyFieldName('{{.Name}}', this)" title="点击复制参数名">{{.Name}}</span>
+                {{if .Parent}}<span class="field-path">({{.Parent}})</span>{{end}}
+                <button class="copy-btn copy-btn-field" onclick="copyToClipboard('{{.Name}}', this)" title="复制参数名">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                    </svg>
+                </button>
+            </div>
+        </td>
+        <td><span class="field-type">{{.Type}}</span></td>
+        <td>{{if .Description}}{{.Description}}{{else}}-{{end}}</td>
+    </tr>
+    {{range .Children}}
+    {{template "renderOutputFieldNestedChild" .}}
+    {{end}}
+    {{end}}
+
 </body>
 </html>`
 
@@ -2718,6 +2854,7 @@ func (app *App) generateDocsHTML(docData DocData) string {
 	funcMap := template.FuncMap{
 		"mul": func(a, b int) int { return a * b },
 		"gt":  func(a, b int) bool { return a > b },
+		"add": func(a, b int) int { return a + b },
 	}
 
 	t := template.Must(template.New("docs").Funcs(funcMap).Parse(tmpl))
