@@ -287,6 +287,12 @@ func New(config ...Config) *App {
 	}
 
 	// Apply default values if still empty
+	if cfg.Name == "" {
+		cfg.Name = "MOD"
+	}
+	if cfg.DisplayName == "" {
+		cfg.DisplayName = "MOD"
+	}
 	if cfg.Config.BodyLimit <= 0 {
 		cfg.Config.BodyLimit = 100 * 1024 * 1024 // 100M
 	}
