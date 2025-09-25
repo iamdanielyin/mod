@@ -8,11 +8,7 @@ import (
 )
 
 func main() {
-	app := mod.New(mod.Config{
-		Name:        "BasicDemo",
-		DisplayName: "基础功能演示",
-		Description: "演示基础的API服务功能，包括登录、错误处理、配置选项等",
-	})
+	app := mod.New() // 使用默认配置
 
 	// 展示基本的服务注册
 	app.Register(mod.Service{
@@ -93,4 +89,3 @@ func main() {
 
 	app.Run(":3000")
 }
-

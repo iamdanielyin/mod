@@ -6,11 +6,7 @@ import (
 )
 
 func main() {
-	app := mod.New(mod.Config{
-		Name:        "ComplexServicesDemo",
-		DisplayName: "复杂业务服务演示",
-		Description: "演示复杂业务场景的API服务，包括订单管理、用户管理、商品管理等",
-	})
+	app := mod.New() // 使用默认配置
 
 	// 注册复杂业务服务
 	RegisterComplexServices(app)

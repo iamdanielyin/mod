@@ -29,10 +29,12 @@ func init() {
 // ModConfig represents the structure of mod.yml configuration file
 type ModConfig struct {
 	App struct {
-		Name        string `yaml:"name"`
-		DisplayName string `yaml:"display_name"`
-		Description string `yaml:"description"`
-		Version     string `yaml:"version"`
+		Name              string   `yaml:"name"`
+		DisplayName       string   `yaml:"display_name"`
+		Description       string   `yaml:"description"`
+		Version           string   `yaml:"version"`
+		ServicePathPrefix string   `yaml:"service_path_prefix"`
+		TokenKeys         []string `yaml:"token_keys"`
 	} `yaml:"app"`
 
 	Cache struct {
@@ -213,17 +215,6 @@ func mergeConfigs(fileConfig *ModConfig, manualConfig Config) Config {
 	// Store the complete ModConfig for later use
 	merged.ModConfig = fileConfig
 
-	// Only override if manual config has default/empty values
-	if merged.Name == "" && fileConfig.App.Name != "" {
-		merged.Name = fileConfig.App.Name
-	}
-	if merged.DisplayName == "" && fileConfig.App.DisplayName != "" {
-		merged.DisplayName = fileConfig.App.DisplayName
-	}
-	if merged.Description == "" && fileConfig.App.Description != "" {
-		merged.Description = fileConfig.App.Description
-	}
-
 	// Server settings from settings section
 	if merged.BodyLimit <= 0 && fileConfig.Settings.MaxConnections > 0 {
 		// Use max_connections as a proxy for body limit if not explicitly set
@@ -255,13 +246,7 @@ func applyLoggingConfig(logger *logrus.Logger, config *ModConfig) {
 
 type Config struct {
 	fiber.Config
-	Name        string
-	DisplayName string
-	Description string
-
-	ServicePrefix string
-	TokenKey      string
-	Logger        *logrus.Logger
+	Logger *logrus.Logger
 
 	// ModConfig holds the complete configuration from mod.yml
 	ModConfig *ModConfig `json:"-"`
@@ -287,20 +272,24 @@ func New(config ...Config) *App {
 	}
 
 	// Apply default values if still empty
-	if cfg.Name == "" {
-		cfg.Name = "MOD"
+	// 设置默认的ModConfig
+	if cfg.ModConfig == nil {
+		cfg.ModConfig = &ModConfig{}
 	}
-	if cfg.DisplayName == "" {
-		cfg.DisplayName = "MOD"
+	if cfg.ModConfig.App.Name == "" {
+		cfg.ModConfig.App.Name = "MOD"
+	}
+	if cfg.ModConfig.App.DisplayName == "" {
+		cfg.ModConfig.App.DisplayName = "MOD"
 	}
 	if cfg.Config.BodyLimit <= 0 {
 		cfg.Config.BodyLimit = 100 * 1024 * 1024 // 100M
 	}
-	if cfg.ServicePrefix == "" {
-		cfg.ServicePrefix = "/services"
+	if cfg.ModConfig.App.ServicePathPrefix == "" {
+		cfg.ModConfig.App.ServicePathPrefix = "/services"
 	}
-	if cfg.TokenKey == "" {
-		cfg.TokenKey = "mod-key,mod-token"
+	if len(cfg.ModConfig.App.TokenKeys) == 0 {
+		cfg.ModConfig.App.TokenKeys = []string{"mod-key", "mod-token"}
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = logrus.StandardLogger()
@@ -319,7 +308,7 @@ func New(config ...Config) *App {
 		App:       fiber.New(cfg.Config),
 		cfg:       cfg,
 		logger:    cfg.Logger,
-		tokenKeys: SplitAndTrimSpace(cfg.TokenKey, ","),
+		tokenKeys: cfg.ModConfig.App.TokenKeys,
 	}
 
 	// 初始化 Token 缓存
@@ -558,7 +547,7 @@ func (app *App) Register(svc Service) error {
 	}
 
 	// 构建服务路径
-	servicePath := fmt.Sprintf("%s/%s", app.cfg.ServicePrefix, svc.Name)
+	servicePath := fmt.Sprintf("%s/%s", app.cfg.ModConfig.App.ServicePathPrefix, svc.Name)
 
 	app.Add(fiber.MethodPost, servicePath, func(fc *fiber.Ctx) error {
 		ctx := &Context{Ctx: fc, logger: app.logger}
@@ -1297,9 +1286,9 @@ func (app *App) handleDocs(c *fiber.Ctx) error {
 	}
 
 	// 设置应用信息
-	docData.AppInfo.Name = app.cfg.Name
-	docData.AppInfo.DisplayName = app.cfg.DisplayName
-	docData.AppInfo.Description = app.cfg.Description
+	docData.AppInfo.Name = app.cfg.ModConfig.App.Name
+	docData.AppInfo.DisplayName = app.cfg.ModConfig.App.DisplayName
+	docData.AppInfo.Description = app.cfg.ModConfig.App.Description
 
 	// 如果有mod配置，优先使用mod配置中的信息
 	if modConfig := app.cfg.ModConfig; modConfig != nil {
@@ -1337,7 +1326,7 @@ func (app *App) groupAndSortServices() []DocGroup {
 	for _, svc := range app.services {
 		docSvc := DocService{
 			Service:     svc,
-			ServicePath: fmt.Sprintf("%s/%s", app.cfg.ServicePrefix, svc.Name),
+			ServicePath: fmt.Sprintf("%s/%s", app.cfg.ModConfig.App.ServicePathPrefix, svc.Name),
 		}
 
 		// 解析输入参数

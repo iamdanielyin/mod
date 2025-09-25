@@ -8,11 +8,7 @@ import (
 )
 
 func main() {
-	app := mod.New(mod.Config{
-		Name:        "TokenDemo",
-		DisplayName: "Token缓存演示",
-		Description: "演示Token缓存功能，包括Token的创建、验证、查询、删除等操作",
-	})
+	app := mod.New() // 使用默认配置
 
 	// 注册基础登录服务，用于生成Token
 	app.Register(mod.Service{
