@@ -111,14 +111,15 @@ file_upload:
 
 # 静态资源挂载配置
 static_mounts:
-  - url_prefix: "/static"          # 对外URL前缀
-    local_path: "./public/static"  # 本地文件系统路径
-    browseable: false              # 是否允许目录浏览
+  - url_prefix: "/static"          # 静态资源URL前缀
+    local_path: "./public/static"  # 本地静态资源路径
+    browseable: false              # 生产环境不允许目录浏览
+    index_file: "index.html"       # 默认首页文件
 
-  - url_prefix: "/uploads"
-    local_path: "./uploads"
-    browseable: true
-    index_file: "index.html"       # 目录默认文件
+  - url_prefix: "/uploads"         # 上传文件访问路径
+    local_path: "./uploads"        # 上传文件存储路径
+    browseable: false              # 生产环境不允许浏览上传目录
+    index_file: ""                 # 不设置默认文件
 
 # 日志收集配置（支持多种日志服务）
 logging:

@@ -147,12 +147,18 @@ file_upload:
 static_mounts:
   - url_prefix: "/static"          # 对外URL前缀
     local_path: "./public/static"  # 本地文件系统路径
-    browseable: false              # 是否允许目录浏览
+    browseable: false              # 是否允许目录浏览（默认false）
+    index_file: "index.html"       # 目录默认文件（默认index.html）
 
-  - url_prefix: "/uploads"
+  - url_prefix: "/uploads"         # 文件上传目录对外访问
     local_path: "./uploads"
-    browseable: true
-    index_file: "index.html"       # 目录默认文件
+    browseable: true               # 允许浏览上传文件列表
+    index_file: ""                 # 不设置默认文件
+
+  - url_prefix: "/assets"          # 静态资源目录
+    local_path: "./assets"
+    browseable: false
+    index_file: "index.html"
 
 # 日志收集配置（支持多种日志服务）
 logging:

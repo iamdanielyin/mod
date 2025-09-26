@@ -36,6 +36,13 @@ token:
     cache_strategy: "bigcache"
     cache_key_prefix: "token:"
 
+# 静态文件挂载（可选）
+# static_mounts:
+#   - url_prefix: "/static"        # URL访问路径
+#     local_path: "./public"       # 本地文件路径
+#     browseable: false            # 是否允许目录浏览
+#     index_file: "index.html"     # 默认首页文件
+
 # 日志配置 - 默认已包含控制台输出
 logging:
   console:

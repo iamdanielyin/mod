@@ -15,6 +15,7 @@ import (
 	"html/template"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strconv"
@@ -560,6 +561,9 @@ func New(config ...Config) *App {
 	// 配置CORS中间件（在路由注册之前）
 	app.configureCORS()
 
+	// 配置静态文件挂载
+	app.configureStaticMounts()
+
 	// 注册文档路由
 	app.Get("/services/docs", app.handleDocs)
 
@@ -606,6 +610,105 @@ func (app *App) configureCORS() {
 		"allow_credentials": corsConfig.AllowCredentials,
 		"max_age":           corsConfig.MaxAge,
 	}).Info("CORS middleware configured successfully")
+}
+
+// configureStaticMounts 配置静态文件挂载
+func (app *App) configureStaticMounts() {
+	// 检查是否有配置静态文件挂载
+	if app.cfg.ModConfig == nil || len(app.cfg.ModConfig.StaticMounts) == 0 {
+		app.logger.Debug("No static mounts configured")
+		return
+	}
+
+	for _, mount := range app.cfg.ModConfig.StaticMounts {
+		// 参数校验
+		if mount.URLPrefix == "" || mount.LocalPath == "" {
+			app.logger.WithFields(logrus.Fields{
+				"url_prefix": mount.URLPrefix,
+				"local_path": mount.LocalPath,
+			}).Error("Invalid static mount configuration: url_prefix and local_path are required")
+			continue
+		}
+
+		// 路径安全检查
+		if !app.isValidStaticPath(mount.LocalPath) {
+			app.logger.WithField("local_path", mount.LocalPath).Error("Invalid local path for static mount")
+			continue
+		}
+
+		// 检查本地路径是否存在
+		if _, err := os.Stat(mount.LocalPath); os.IsNotExist(err) {
+			app.logger.WithFields(logrus.Fields{
+				"url_prefix": mount.URLPrefix,
+				"local_path": mount.LocalPath,
+			}).Warn("Static mount local path does not exist, skipping")
+			continue
+		}
+
+		// 构造静态文件配置
+		staticConfig := fiber.Static{
+			Compress:  true,  // 启用压缩
+			ByteRange: true,  // 支持范围请求
+			Browse:    mount.Browseable, // 目录浏览
+		}
+
+		// 设置默认索引文件
+		if mount.IndexFile != "" {
+			staticConfig.Index = mount.IndexFile
+		} else {
+			staticConfig.Index = "index.html" // 默认索引文件
+		}
+
+		// 挂载静态文件服务
+		app.Static(mount.URLPrefix, mount.LocalPath, staticConfig)
+
+		app.logger.WithFields(logrus.Fields{
+			"url_prefix":  mount.URLPrefix,
+			"local_path":  mount.LocalPath,
+			"browseable":  mount.Browseable,
+			"index_file":  staticConfig.Index,
+		}).Info("Static mount configured successfully")
+	}
+}
+
+// isValidStaticPath 验证静态文件路径的安全性
+func (app *App) isValidStaticPath(path string) bool {
+	// 基本路径验证
+	if path == "" {
+		return false
+	}
+
+	// 防止路径遍历攻击
+	if strings.Contains(path, "..") {
+		app.logger.WithField("path", path).Warn("Path traversal attempt detected")
+		return false
+	}
+
+	// 转换为绝对路径进行进一步检查
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		app.logger.WithError(err).WithField("path", path).Error("Failed to resolve absolute path")
+		return false
+	}
+
+	// 获取工作目录
+	wd, err := os.Getwd()
+	if err != nil {
+		app.logger.WithError(err).Error("Failed to get working directory")
+		return true // 如果无法获取工作目录，允许通过（降级处理）
+	}
+
+	// 检查路径是否在工作目录下或其子目录中
+	workdirAbs, _ := filepath.Abs(wd)
+	if !strings.HasPrefix(absPath, workdirAbs) {
+		app.logger.WithFields(logrus.Fields{
+			"abs_path": absPath,
+			"workdir":  workdirAbs,
+		}).Warn("Static path is outside of working directory")
+		// 这里不严格禁止，只是警告，因为可能有合法的用例
+	}
+
+	return true
 }
 
 // initTokenCache 初始化 Token 缓存
