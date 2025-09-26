@@ -43,6 +43,15 @@ token:
 #     browseable: false            # 是否允许目录浏览
 #     index_file: "index.html"     # 默认首页文件
 
+# 文件上传功能（可选）
+# file_upload:
+#   local:
+#     enabled: true
+#     upload_dir: "./uploads"      # 上传目录
+#     max_size: "10MB"             # 文件大小限制
+#     allowed_types: ["image/"]    # 允许的文件类型
+#     auto_create_dir: true        # 自动创建目录
+
 # 日志配置 - 默认已包含控制台输出
 logging:
   console:

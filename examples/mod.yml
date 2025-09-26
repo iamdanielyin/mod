@@ -89,8 +89,23 @@ file_upload:
   local:
     enabled: true
     upload_dir: "./uploads"        # 上传文件存储目录
-    max_size: "10MB"               # 单文件最大尺寸
-    allowed_types: [ "image/jpeg", "image/png", "application/pdf" ]
+    max_size: "50MB"               # 生产环境可以设置更大的限制
+    allowed_types:                 # 生产环境建议严格控制文件类型
+      - "image/jpeg"
+      - "image/png"
+      - "application/pdf"
+      - "application/msword"
+      - "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    allowed_exts:                  # 严格的扩展名控制
+      - ".jpg"
+      - ".jpeg"
+      - ".png"
+      - ".pdf"
+      - ".doc"
+      - ".docx"
+    keep_original_name: false      # 生产环境建议使用随机文件名
+    auto_create_dir: true          # 自动创建上传目录
+    date_sub_dir: true             # 按日期组织文件，便于管理
 
   # Amazon S3配置
   s3:

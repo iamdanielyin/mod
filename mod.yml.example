@@ -124,7 +124,22 @@ file_upload:
     enabled: true
     upload_dir: "./uploads"        # 上传文件存储目录
     max_size: "10MB"               # 单文件最大尺寸
-    allowed_types: [ "image/jpeg", "image/png", "application/pdf" ]
+    allowed_types:                 # 允许的MIME类型
+      - "image/jpeg"
+      - "image/png"
+      - "image/gif"
+      - "application/pdf"
+      - "text/plain"
+    allowed_exts:                  # 允许的文件扩展名
+      - ".jpg"
+      - ".jpeg"
+      - ".png"
+      - ".gif"
+      - ".pdf"
+      - ".txt"
+    keep_original_name: false      # 是否保持原始文件名（false=随机命名）
+    auto_create_dir: true          # 自动创建上传目录
+    date_sub_dir: true             # 按日期创建子目录 (YYYY/MM/DD)
 
   # Amazon S3配置
   s3:

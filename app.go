@@ -2,6 +2,8 @@ package mod
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/allegro/bigcache/v3"
@@ -13,7 +15,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 	"html/template"
+	"io"
 	"io/ioutil"
+	"mime"
+	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -127,10 +133,14 @@ type ModConfig struct {
 
 	FileUpload struct {
 		Local struct {
-			Enabled      bool     `yaml:"enabled"`
-			UploadDir    string   `yaml:"upload_dir"`
-			MaxSize      string   `yaml:"max_size"`
-			AllowedTypes []string `yaml:"allowed_types"`
+			Enabled         bool     `yaml:"enabled"`           // 是否启用本地文件上传
+			UploadDir       string   `yaml:"upload_dir"`        // 上传目录路径
+			MaxSize         string   `yaml:"max_size"`          // 单文件最大大小
+			AllowedTypes    []string `yaml:"allowed_types"`     // 允许的文件MIME类型
+			AllowedExts     []string `yaml:"allowed_exts"`      // 允许的文件扩展名
+			KeepOriginalName bool    `yaml:"keep_original_name"` // 是否保持原始文件名
+			AutoCreateDir   bool     `yaml:"auto_create_dir"`   // 自动创建上传目录
+			DateSubDir      bool     `yaml:"date_sub_dir"`      // 按日期创建子目录
 		} `yaml:"local"`
 
 		S3 struct {
@@ -564,6 +574,9 @@ func New(config ...Config) *App {
 	// 配置静态文件挂载
 	app.configureStaticMounts()
 
+	// 配置文件上传功能
+	app.configureFileUpload()
+
 	// 注册文档路由
 	app.Get("/services/docs", app.handleDocs)
 
@@ -709,6 +722,382 @@ func (app *App) isValidStaticPath(path string) bool {
 	}
 
 	return true
+}
+
+// configureFileUpload 配置文件上传功能
+func (app *App) configureFileUpload() {
+	// 检查是否启用文件上传
+	if app.cfg.ModConfig == nil || !app.cfg.ModConfig.FileUpload.Local.Enabled {
+		app.logger.Debug("File upload is disabled")
+		return
+	}
+
+	config := app.cfg.ModConfig.FileUpload.Local
+
+	// 参数校验
+	if config.UploadDir == "" {
+		app.logger.Error("File upload enabled but upload_dir is not configured")
+		return
+	}
+
+	// 路径安全检查
+	if !app.isValidUploadPath(config.UploadDir) {
+		app.logger.WithField("upload_dir", config.UploadDir).Error("Invalid upload directory path")
+		return
+	}
+
+	// 创建上传目录
+	if config.AutoCreateDir {
+		if err := os.MkdirAll(config.UploadDir, 0755); err != nil {
+			app.logger.WithError(err).WithField("upload_dir", config.UploadDir).Error("Failed to create upload directory")
+			return
+		}
+	}
+
+	// 检查上传目录是否存在
+	if _, err := os.Stat(config.UploadDir); os.IsNotExist(err) {
+		app.logger.WithField("upload_dir", config.UploadDir).Error("Upload directory does not exist")
+		return
+	}
+
+	// 解析最大文件大小
+	var maxSizeBytes int64 = 10 * 1024 * 1024 // 默认10MB
+	if config.MaxSize != "" {
+		if size, err := parseSize(config.MaxSize); err == nil {
+			maxSizeBytes = size
+		} else {
+			app.logger.WithError(err).WithField("max_size", config.MaxSize).Error("Invalid max_size format, using default 10MB")
+		}
+	}
+
+	// 注册文件上传路由
+	app.Post("/upload", func(c *fiber.Ctx) error {
+		return app.handleFileUpload(c, config, maxSizeBytes)
+	})
+
+	// 注册批量文件上传路由
+	app.Post("/upload/batch", func(c *fiber.Ctx) error {
+		return app.handleBatchFileUpload(c, config, maxSizeBytes)
+	})
+
+	app.logger.WithFields(logrus.Fields{
+		"upload_dir":         config.UploadDir,
+		"max_size":          config.MaxSize,
+		"allowed_types":     config.AllowedTypes,
+		"allowed_exts":      config.AllowedExts,
+		"keep_original_name": config.KeepOriginalName,
+		"date_sub_dir":      config.DateSubDir,
+	}).Info("File upload configured successfully")
+}
+
+// isValidUploadPath 验证上传路径的安全性
+func (app *App) isValidUploadPath(path string) bool {
+	// 基本路径验证
+	if path == "" {
+		return false
+	}
+
+	// 防止路径遍历攻击
+	if strings.Contains(path, "..") {
+		app.logger.WithField("path", path).Warn("Upload path traversal attempt detected")
+		return false
+	}
+
+	// 转换为绝对路径进行进一步检查
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		app.logger.WithError(err).WithField("path", path).Error("Failed to resolve absolute upload path")
+		return false
+	}
+
+	// 获取工作目录
+	wd, err := os.Getwd()
+	if err != nil {
+		app.logger.WithError(err).Error("Failed to get working directory for upload validation")
+		return true // 如果无法获取工作目录，允许通过（降级处理）
+	}
+
+	// 检查路径是否在工作目录下或其子目录中
+	workdirAbs, _ := filepath.Abs(wd)
+	if !strings.HasPrefix(absPath, workdirAbs) {
+		app.logger.WithFields(logrus.Fields{
+			"abs_path": absPath,
+			"workdir":  workdirAbs,
+		}).Warn("Upload path is outside of working directory")
+		// 这里不严格禁止，只是警告，因为可能有合法的用例
+	}
+
+	return true
+}
+
+// handleFileUpload 处理单文件上传
+func (app *App) handleFileUpload(c *fiber.Ctx, config struct {
+	Enabled         bool     `yaml:"enabled"`
+	UploadDir       string   `yaml:"upload_dir"`
+	MaxSize         string   `yaml:"max_size"`
+	AllowedTypes    []string `yaml:"allowed_types"`
+	AllowedExts     []string `yaml:"allowed_exts"`
+	KeepOriginalName bool    `yaml:"keep_original_name"`
+	AutoCreateDir   bool     `yaml:"auto_create_dir"`
+	DateSubDir      bool     `yaml:"date_sub_dir"`
+}, maxSizeBytes int64) error {
+
+	// 获取上传的文件
+	file, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error":   "No file provided",
+			"message": "请选择要上传的文件",
+		})
+	}
+
+	// 验证文件
+	if err := app.validateFile(file, config, maxSizeBytes); err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error":   "File validation failed",
+			"message": err.Error(),
+		})
+	}
+
+	// 保存文件
+	savedPath, err := app.saveFile(file, config)
+	if err != nil {
+		app.logger.WithError(err).Error("Failed to save uploaded file")
+		return c.Status(500).JSON(fiber.Map{
+			"error":   "Failed to save file",
+			"message": "文件保存失败",
+		})
+	}
+
+	// 返回成功响应
+	return c.JSON(fiber.Map{
+		"success":  true,
+		"message":  "文件上传成功",
+		"filename": filepath.Base(savedPath),
+		"path":     savedPath,
+		"size":     file.Size,
+	})
+}
+
+// handleBatchFileUpload 处理批量文件上传
+func (app *App) handleBatchFileUpload(c *fiber.Ctx, config struct {
+	Enabled         bool     `yaml:"enabled"`
+	UploadDir       string   `yaml:"upload_dir"`
+	MaxSize         string   `yaml:"max_size"`
+	AllowedTypes    []string `yaml:"allowed_types"`
+	AllowedExts     []string `yaml:"allowed_exts"`
+	KeepOriginalName bool    `yaml:"keep_original_name"`
+	AutoCreateDir   bool     `yaml:"auto_create_dir"`
+	DateSubDir      bool     `yaml:"date_sub_dir"`
+}, maxSizeBytes int64) error {
+
+	// 获取所有上传的文件
+	form, err := c.MultipartForm()
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error":   "Failed to parse multipart form",
+			"message": "解析上传表单失败",
+		})
+	}
+
+	files := form.File["files"]
+	if len(files) == 0 {
+		return c.Status(400).JSON(fiber.Map{
+			"error":   "No files provided",
+			"message": "请选择要上传的文件",
+		})
+	}
+
+	var results []fiber.Map
+	var successCount int
+
+	// 处理每个文件
+	for _, file := range files {
+		result := fiber.Map{
+			"filename": file.Filename,
+			"size":     file.Size,
+		}
+
+		// 验证文件
+		if err := app.validateFile(file, config, maxSizeBytes); err != nil {
+			result["success"] = false
+			result["error"] = err.Error()
+			results = append(results, result)
+			continue
+		}
+
+		// 保存文件
+		savedPath, err := app.saveFile(file, config)
+		if err != nil {
+			app.logger.WithError(err).WithField("filename", file.Filename).Error("Failed to save uploaded file in batch")
+			result["success"] = false
+			result["error"] = "文件保存失败"
+			results = append(results, result)
+			continue
+		}
+
+		result["success"] = true
+		result["path"] = savedPath
+		result["saved_filename"] = filepath.Base(savedPath)
+		successCount++
+		results = append(results, result)
+	}
+
+	// 返回批量上传结果
+	return c.JSON(fiber.Map{
+		"success":       true,
+		"message":       fmt.Sprintf("批量上传完成，成功: %d, 总数: %d", successCount, len(files)),
+		"total":         len(files),
+		"success_count": successCount,
+		"failed_count":  len(files) - successCount,
+		"results":       results,
+	})
+}
+
+// validateFile 验证上传文件
+func (app *App) validateFile(file *multipart.FileHeader, config struct {
+	Enabled         bool     `yaml:"enabled"`
+	UploadDir       string   `yaml:"upload_dir"`
+	MaxSize         string   `yaml:"max_size"`
+	AllowedTypes    []string `yaml:"allowed_types"`
+	AllowedExts     []string `yaml:"allowed_exts"`
+	KeepOriginalName bool    `yaml:"keep_original_name"`
+	AutoCreateDir   bool     `yaml:"auto_create_dir"`
+	DateSubDir      bool     `yaml:"date_sub_dir"`
+}, maxSizeBytes int64) error {
+
+	// 检查文件大小
+	if file.Size > maxSizeBytes {
+		return fmt.Errorf("文件大小 %d 超过限制 %d", file.Size, maxSizeBytes)
+	}
+
+	// 检查文件扩展名
+	if len(config.AllowedExts) > 0 {
+		ext := strings.ToLower(filepath.Ext(file.Filename))
+		allowed := false
+		for _, allowedExt := range config.AllowedExts {
+			if strings.ToLower(allowedExt) == ext || strings.ToLower("."+allowedExt) == ext {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return fmt.Errorf("文件扩展名 %s 不被允许", ext)
+		}
+	}
+
+	// 检查MIME类型
+	if len(config.AllowedTypes) > 0 {
+		// 获取文件的MIME类型
+		src, err := file.Open()
+		if err != nil {
+			return fmt.Errorf("无法读取文件内容进行类型检查")
+		}
+		defer src.Close()
+
+		// 读取文件头来检测MIME类型
+		buffer := make([]byte, 512)
+		_, err = src.Read(buffer)
+		if err != nil {
+			return fmt.Errorf("无法读取文件内容进行类型检查")
+		}
+
+		detectedType := http.DetectContentType(buffer)
+
+		// 也可以通过扩展名推断MIME类型
+		extType := mime.TypeByExtension(filepath.Ext(file.Filename))
+
+		allowed := false
+		for _, allowedType := range config.AllowedTypes {
+			if strings.HasPrefix(detectedType, allowedType) || strings.HasPrefix(extType, allowedType) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return fmt.Errorf("文件类型 %s 不被允许", detectedType)
+		}
+	}
+
+	return nil
+}
+
+// saveFile 保存上传文件
+func (app *App) saveFile(file *multipart.FileHeader, config struct {
+	Enabled         bool     `yaml:"enabled"`
+	UploadDir       string   `yaml:"upload_dir"`
+	MaxSize         string   `yaml:"max_size"`
+	AllowedTypes    []string `yaml:"allowed_types"`
+	AllowedExts     []string `yaml:"allowed_exts"`
+	KeepOriginalName bool    `yaml:"keep_original_name"`
+	AutoCreateDir   bool     `yaml:"auto_create_dir"`
+	DateSubDir      bool     `yaml:"date_sub_dir"`
+}) (string, error) {
+
+	// 确定保存目录
+	saveDir := config.UploadDir
+	if config.DateSubDir {
+		// 按日期创建子目录 (YYYY/MM/DD)
+		now := time.Now()
+		dateDir := filepath.Join(saveDir, fmt.Sprintf("%04d", now.Year()), fmt.Sprintf("%02d", now.Month()), fmt.Sprintf("%02d", now.Day()))
+		if err := os.MkdirAll(dateDir, 0755); err != nil {
+			return "", fmt.Errorf("failed to create date subdirectory: %v", err)
+		}
+		saveDir = dateDir
+	}
+
+	// 确定文件名
+	var filename string
+	if config.KeepOriginalName {
+		filename = file.Filename
+		// 如果文件已存在，添加时间戳后缀
+		fullPath := filepath.Join(saveDir, filename)
+		if _, err := os.Stat(fullPath); err == nil {
+			ext := filepath.Ext(filename)
+			name := strings.TrimSuffix(filename, ext)
+			timestamp := time.Now().Format("20060102_150405")
+			filename = fmt.Sprintf("%s_%s%s", name, timestamp, ext)
+		}
+	} else {
+		// 生成随机文件名
+		ext := filepath.Ext(file.Filename)
+		randomName, err := app.generateRandomFilename()
+		if err != nil {
+			return "", fmt.Errorf("failed to generate random filename: %v", err)
+		}
+		filename = randomName + ext
+	}
+
+	// 完整的保存路径
+	savePath := filepath.Join(saveDir, filename)
+
+	// 保存文件
+	src, err := file.Open()
+	if err != nil {
+		return "", fmt.Errorf("failed to open uploaded file: %v", err)
+	}
+	defer src.Close()
+
+	dst, err := os.Create(savePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create destination file: %v", err)
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, src); err != nil {
+		return "", fmt.Errorf("failed to save file: %v", err)
+	}
+
+	return savePath, nil
+}
+
+// generateRandomFilename 生成随机文件名
+func (app *App) generateRandomFilename() (string, error) {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
 }
 
 // initTokenCache 初始化 Token 缓存

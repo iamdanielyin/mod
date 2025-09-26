@@ -47,6 +47,33 @@ static_mounts:
     browseable: true               # 允许浏览测试数据
     index_file: "index.json"       # JSON格式的默认文件
 
+# 文件上传配置 - 测试环境
+file_upload:
+  local:
+    enabled: true
+    upload_dir: "./uploads"
+    max_size: "20MB"               # 测试环境适中的限制
+    allowed_types:                 # 测试环境允许更多类型
+      - "image/"                   # 所有图片类型
+      - "text/"                    # 所有文本类型
+      - "application/json"
+      - "application/pdf"
+    allowed_exts:                  # 宽松的扩展名限制
+      - ".jpg"
+      - ".jpeg"
+      - ".png"
+      - ".gif"
+      - ".bmp"
+      - ".webp"
+      - ".txt"
+      - ".md"
+      - ".json"
+      - ".pdf"
+      - ".zip"
+    keep_original_name: true       # 测试环境保持原文件名便于识别
+    auto_create_dir: true          # 自动创建目录
+    date_sub_dir: false            # 测试环境不按日期分类
+
 # 日志配置 - 测试环境
 logging:
   console:
