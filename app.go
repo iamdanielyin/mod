@@ -8,6 +8,7 @@ import (
 	"github.com/dgraph-io/badger/v4"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -16,6 +17,7 @@ import (
 	"os"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -29,12 +31,51 @@ func init() {
 // ModConfig represents the structure of mod.yml configuration file
 type ModConfig struct {
 	App struct {
+		// 应用基础信息
 		Name              string   `yaml:"name"`
 		DisplayName       string   `yaml:"display_name"`
 		Description       string   `yaml:"description"`
 		Version           string   `yaml:"version"`
 		ServicePathPrefix string   `yaml:"service_path_prefix"`
 		TokenKeys         []string `yaml:"token_keys"`
+
+		// 服务器配置 - 只包含 Fiber 支持的配置
+		Host                          string   `yaml:"host"`
+		Port                          int      `yaml:"port"`
+		ReadTimeout                   string   `yaml:"read_timeout"`
+		WriteTimeout                  string   `yaml:"write_timeout"`
+		IdleTimeout                   string   `yaml:"idle_timeout"`
+		ReadBufferSize                int      `yaml:"read_buffer_size"`
+		WriteBufferSize               int      `yaml:"write_buffer_size"`
+		CompressedFileSuffix          string   `yaml:"compressed_file_suffix"`
+		ProxyHeader                   string   `yaml:"proxy_header"`
+		GETOnly                       bool     `yaml:"get_only"`
+		DisableKeepalive              bool     `yaml:"disable_keepalive"`
+		DisableDefaultDate            bool     `yaml:"disable_default_date"`
+		DisableDefaultContentType     bool     `yaml:"disable_default_content_type"`
+		DisableHeaderNormalizing      bool     `yaml:"disable_header_normalizing"`
+		DisableStartupMessage         bool     `yaml:"disable_startup_message"`
+		EnableTrustedProxyCheck       bool     `yaml:"enable_trusted_proxy_check"`
+		Prefork                       bool     `yaml:"prefork"`
+		StrictRouting                 bool     `yaml:"strict_routing"`
+		CaseSensitive                 bool     `yaml:"case_sensitive"`
+		UnescapePath                  bool     `yaml:"unescape_path"`
+		ETag                          bool     `yaml:"etag"`
+		BodyLimit                     string   `yaml:"body_limit"`
+		Concurrency                   int      `yaml:"concurrency"`
+		Views                         string   `yaml:"views"`
+		TrustedProxies                []string `yaml:"trusted_proxies"`
+
+		// CORS跨域配置
+		CORS struct {
+			Enabled          bool     `yaml:"enabled"`           // 是否启用CORS
+			AllowOrigins     []string `yaml:"allow_origins"`     // 允许的源
+			AllowMethods     []string `yaml:"allow_methods"`     // 允许的HTTP方法
+			AllowHeaders     []string `yaml:"allow_headers"`     // 允许的请求头
+			AllowCredentials bool     `yaml:"allow_credentials"` // 是否允许携带凭证
+			ExposeHeaders    []string `yaml:"expose_headers"`    // 暴露的响应头
+			MaxAge           string   `yaml:"max_age"`           // 预检请求缓存时间
+		} `yaml:"cors"`
 	} `yaml:"app"`
 
 	Cache struct {
@@ -167,13 +208,6 @@ type ModConfig struct {
 		} `yaml:"validation"`
 	} `yaml:"token"`
 
-	Settings struct {
-		Port           int    `yaml:"port"`
-		ReadTimeout    string `yaml:"read_timeout"`
-		WriteTimeout   string `yaml:"write_timeout"`
-		MaxConnections int    `yaml:"max_connections"`
-		CacheStrategy  string `yaml:"cache_strategy"`
-	} `yaml:"settings"`
 }
 
 // loadModConfig attempts to load configuration from mod.yml file
@@ -215,13 +249,157 @@ func mergeConfigs(fileConfig *ModConfig, manualConfig Config) Config {
 	// Store the complete ModConfig for later use
 	merged.ModConfig = fileConfig
 
-	// Server settings from settings section
-	if merged.BodyLimit <= 0 && fileConfig.Settings.MaxConnections > 0 {
-		// Use max_connections as a proxy for body limit if not explicitly set
-		merged.BodyLimit = 100 * 1024 * 1024 // Default 100MB
+	// Apply server settings from fileConfig.App if manual config hasn't set them
+	serverConfig := &merged.Config
+
+	// 应用服务器配置
+	if fileConfig.App.ReadTimeout != "" {
+		if timeout, err := time.ParseDuration(fileConfig.App.ReadTimeout); err == nil {
+			if serverConfig.ReadTimeout == 0 {
+				serverConfig.ReadTimeout = timeout
+			}
+		}
+	}
+
+	if fileConfig.App.WriteTimeout != "" {
+		if timeout, err := time.ParseDuration(fileConfig.App.WriteTimeout); err == nil {
+			if serverConfig.WriteTimeout == 0 {
+				serverConfig.WriteTimeout = timeout
+			}
+		}
+	}
+
+	if fileConfig.App.IdleTimeout != "" {
+		if timeout, err := time.ParseDuration(fileConfig.App.IdleTimeout); err == nil {
+			if serverConfig.IdleTimeout == 0 {
+				serverConfig.IdleTimeout = timeout
+			}
+		}
+	}
+
+	if fileConfig.App.BodyLimit != "" {
+		if limit, err := parseSize(fileConfig.App.BodyLimit); err == nil {
+			if serverConfig.BodyLimit == 0 {
+				serverConfig.BodyLimit = int(limit)
+			}
+		}
+	}
+
+	if fileConfig.App.Concurrency > 0 && serverConfig.Concurrency == 0 {
+		serverConfig.Concurrency = fileConfig.App.Concurrency
+	}
+
+	if fileConfig.App.ReadBufferSize > 0 && serverConfig.ReadBufferSize == 0 {
+		serverConfig.ReadBufferSize = fileConfig.App.ReadBufferSize
+	}
+
+	if fileConfig.App.WriteBufferSize > 0 && serverConfig.WriteBufferSize == 0 {
+		serverConfig.WriteBufferSize = fileConfig.App.WriteBufferSize
+	}
+
+	if fileConfig.App.CompressedFileSuffix != "" && serverConfig.CompressedFileSuffix == "" {
+		serverConfig.CompressedFileSuffix = fileConfig.App.CompressedFileSuffix
+	}
+
+	if fileConfig.App.ProxyHeader != "" && serverConfig.ProxyHeader == "" {
+		serverConfig.ProxyHeader = fileConfig.App.ProxyHeader
+	}
+
+	// 布尔值配置 - 只有当手动配置为默认值时才应用文件配置
+	if serverConfig.GETOnly == false {
+		serverConfig.GETOnly = fileConfig.App.GETOnly
+	}
+
+	if serverConfig.DisableKeepalive == false {
+		serverConfig.DisableKeepalive = fileConfig.App.DisableKeepalive
+	}
+
+	if serverConfig.DisableDefaultDate == false {
+		serverConfig.DisableDefaultDate = fileConfig.App.DisableDefaultDate
+	}
+
+	if serverConfig.DisableDefaultContentType == false {
+		serverConfig.DisableDefaultContentType = fileConfig.App.DisableDefaultContentType
+	}
+
+	if serverConfig.DisableHeaderNormalizing == false {
+		serverConfig.DisableHeaderNormalizing = fileConfig.App.DisableHeaderNormalizing
+	}
+
+	if serverConfig.DisableStartupMessage == false {
+		serverConfig.DisableStartupMessage = fileConfig.App.DisableStartupMessage
+	}
+
+	if serverConfig.EnableTrustedProxyCheck == false {
+		serverConfig.EnableTrustedProxyCheck = fileConfig.App.EnableTrustedProxyCheck
+	}
+
+	if serverConfig.Prefork == false {
+		serverConfig.Prefork = fileConfig.App.Prefork
+	}
+
+	if serverConfig.StrictRouting == false {
+		serverConfig.StrictRouting = fileConfig.App.StrictRouting
+	}
+
+	if serverConfig.CaseSensitive == false {
+		serverConfig.CaseSensitive = fileConfig.App.CaseSensitive
+	}
+
+	if serverConfig.UnescapePath == false {
+		serverConfig.UnescapePath = fileConfig.App.UnescapePath
+	}
+
+	if serverConfig.ETag == false {
+		serverConfig.ETag = fileConfig.App.ETag
+	}
+
+	if len(fileConfig.App.TrustedProxies) > 0 && len(serverConfig.TrustedProxies) == 0 {
+		serverConfig.TrustedProxies = fileConfig.App.TrustedProxies
+	}
+
+	// Views 配置需要特殊处理
+	if fileConfig.App.Views != "" && serverConfig.Views == nil {
+		// 这里应该根据 Views 路径创建模板引擎
+		// 例如：serverConfig.Views = html.New(fileConfig.App.Views, ".html")
+		// 但由于需要导入模板引擎包，这里先留空，让用户手动配置
 	}
 
 	return merged
+}
+
+// parseSize 解析大小字符串，支持 B、KB、MB、GB 等单位
+func parseSize(sizeStr string) (int64, error) {
+	sizeStr = strings.TrimSpace(strings.ToUpper(sizeStr))
+	if sizeStr == "" {
+		return 0, fmt.Errorf("empty size string")
+	}
+
+	// 定义单位倍数
+	units := map[string]int64{
+		"B":  1,
+		"KB": 1024,
+		"MB": 1024 * 1024,
+		"GB": 1024 * 1024 * 1024,
+		"TB": 1024 * 1024 * 1024 * 1024,
+	}
+
+	// 如果是纯数字，则默认为字节
+	if num, err := strconv.ParseInt(sizeStr, 10, 64); err == nil {
+		return num, nil
+	}
+
+	// 查找单位
+	for unit, multiplier := range units {
+		if strings.HasSuffix(sizeStr, unit) {
+			numStr := strings.TrimSuffix(sizeStr, unit)
+			if num, err := strconv.ParseFloat(numStr, 64); err == nil {
+				return int64(num * float64(multiplier)), nil
+			}
+		}
+	}
+
+	return 0, fmt.Errorf("invalid size format: %s", sizeStr)
 }
 
 // applyLoggingConfig applies logging configuration from mod.yml to logger
@@ -276,23 +454,73 @@ func New(config ...Config) *App {
 	if cfg.ModConfig == nil {
 		cfg.ModConfig = &ModConfig{}
 	}
+
+	// 应用基础信息默认值
 	if cfg.ModConfig.App.Name == "" {
 		cfg.ModConfig.App.Name = "MOD"
 	}
 	if cfg.ModConfig.App.DisplayName == "" {
-		cfg.ModConfig.App.DisplayName = "MOD"
-	}
-	if cfg.Config.BodyLimit <= 0 {
-		cfg.Config.BodyLimit = 100 * 1024 * 1024 // 100M
+		cfg.ModConfig.App.DisplayName = "MOD Application"
 	}
 	if cfg.ModConfig.App.ServicePathPrefix == "" {
 		cfg.ModConfig.App.ServicePathPrefix = "/services"
 	}
 	if len(cfg.ModConfig.App.TokenKeys) == 0 {
-		cfg.ModConfig.App.TokenKeys = []string{"mod-key", "mod-token"}
+		cfg.ModConfig.App.TokenKeys = []string{"Authorization", "X-API-Key", "mod-token"}
 	}
+
+	// Fiber 服务器配置默认值 - 针对中型应用优化
+	if cfg.Config.BodyLimit <= 0 {
+		cfg.Config.BodyLimit = 100 * 1024 * 1024 // 100MB - 适合文件上传
+	}
+	if cfg.Config.ReadTimeout == 0 {
+		cfg.Config.ReadTimeout = 30 * time.Second // 30秒读取超时
+	}
+	if cfg.Config.WriteTimeout == 0 {
+		cfg.Config.WriteTimeout = 30 * time.Second // 30秒写入超时
+	}
+	if cfg.Config.IdleTimeout == 0 {
+		cfg.Config.IdleTimeout = 120 * time.Second // 2分钟空闲超时
+	}
+	if cfg.Config.Concurrency <= 0 {
+		cfg.Config.Concurrency = 256 * 1024 // 256K 并发连接 - 中型应用合适
+	}
+	if cfg.Config.ReadBufferSize <= 0 {
+		cfg.Config.ReadBufferSize = 8192 // 8KB 读取缓冲区
+	}
+	if cfg.Config.WriteBufferSize <= 0 {
+		cfg.Config.WriteBufferSize = 8192 // 8KB 写入缓冲区
+	}
+
+	// 设置合理的默认布尔值
+	cfg.Config.DisableStartupMessage = false // 显示启动消息
+	cfg.Config.StrictRouting = false         // 不启用严格路由
+	cfg.Config.CaseSensitive = false         // 路由不区分大小写
+	cfg.Config.ETag = true                   // 启用ETag优化性能
+	cfg.Config.CompressedFileSuffix = ".gz"  // 支持Gzip压缩文件
+
+	// CORS 默认配置（默认关闭）
+	if cfg.ModConfig.App.CORS.Enabled && len(cfg.ModConfig.App.CORS.AllowOrigins) == 0 {
+		// 如果启用了CORS但没有配置允许的源，设置安全的默认值
+		cfg.ModConfig.App.CORS.AllowOrigins = []string{"*"}
+	}
+	if cfg.ModConfig.App.CORS.Enabled && len(cfg.ModConfig.App.CORS.AllowMethods) == 0 {
+		// 默认允许的HTTP方法
+		cfg.ModConfig.App.CORS.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+	}
+	if cfg.ModConfig.App.CORS.Enabled && len(cfg.ModConfig.App.CORS.AllowHeaders) == 0 {
+		// 默认允许的请求头
+		cfg.ModConfig.App.CORS.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"}
+	}
+	if cfg.ModConfig.App.CORS.Enabled && cfg.ModConfig.App.CORS.MaxAge == "" {
+		// 默认预检请求缓存时间
+		cfg.ModConfig.App.CORS.MaxAge = "24h"
+	}
+
+	// 日志配置默认值
 	if cfg.Logger == nil {
 		cfg.Logger = logrus.StandardLogger()
+		cfg.Logger.SetLevel(logrus.InfoLevel) // 默认Info级别
 		cfg.Logger.SetFormatter(&logrus.TextFormatter{
 			FullTimestamp: true,
 			ForceColors:   true,
@@ -329,10 +557,55 @@ func New(config ...Config) *App {
 		}
 	}
 
+	// 配置CORS中间件（在路由注册之前）
+	app.configureCORS()
+
 	// 注册文档路由
 	app.Get("/services/docs", app.handleDocs)
 
 	return app
+}
+
+// configureCORS 配置CORS中间件
+func (app *App) configureCORS() {
+	// 检查是否启用CORS
+	if app.cfg.ModConfig == nil || !app.cfg.ModConfig.App.CORS.Enabled {
+		app.logger.Debug("CORS is disabled")
+		return
+	}
+
+	corsConfig := app.cfg.ModConfig.App.CORS
+
+	// 解析MaxAge
+	var maxAge int
+	if corsConfig.MaxAge != "" {
+		if duration, err := time.ParseDuration(corsConfig.MaxAge); err == nil {
+			maxAge = int(duration.Seconds())
+		} else {
+			app.logger.WithError(err).Warn("Invalid CORS max_age duration, using default 86400s (24h)")
+			maxAge = 86400 // 24小时
+		}
+	} else {
+		maxAge = 86400 // 默认24小时
+	}
+
+	// 配置CORS中间件
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     strings.Join(corsConfig.AllowOrigins, ","),
+		AllowMethods:     strings.Join(corsConfig.AllowMethods, ","),
+		AllowHeaders:     strings.Join(corsConfig.AllowHeaders, ","),
+		AllowCredentials: corsConfig.AllowCredentials,
+		ExposeHeaders:    strings.Join(corsConfig.ExposeHeaders, ","),
+		MaxAge:           maxAge,
+	}))
+
+	app.logger.WithFields(logrus.Fields{
+		"allow_origins":     corsConfig.AllowOrigins,
+		"allow_methods":     corsConfig.AllowMethods,
+		"allow_headers":     corsConfig.AllowHeaders,
+		"allow_credentials": corsConfig.AllowCredentials,
+		"max_age":           corsConfig.MaxAge,
+	}).Info("CORS middleware configured successfully")
 }
 
 // initTokenCache 初始化 Token 缓存
@@ -527,7 +800,24 @@ func (app *App) Run(addr ...string) {
 	if len(addr) > 0 {
 		a = addr[0]
 	} else {
-		a = ":8080"
+		// 优先使用配置文件中的端口和主机
+		host := ""
+		port := 8080 // 默认端口
+
+		if app.cfg.ModConfig != nil {
+			if app.cfg.ModConfig.App.Host != "" {
+				host = app.cfg.ModConfig.App.Host
+			}
+			if app.cfg.ModConfig.App.Port > 0 {
+				port = app.cfg.ModConfig.App.Port
+			}
+		}
+
+		if host == "" || host == "localhost" || host == "127.0.0.1" {
+			a = fmt.Sprintf(":%d", port)
+		} else {
+			a = fmt.Sprintf("%s:%d", host, port)
+		}
 	}
 	app.logger.Info("Starting server on " + a)
 	if err := app.Listen(a); err != nil {

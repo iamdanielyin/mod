@@ -2,12 +2,68 @@
 # This file will be automatically loaded when the application starts
 # Environment variable MOD_PATH can be used to specify a custom path
 
-# 应用基本信息
+# 应用基本信息与服务器配置
 app:
+  # 应用基础信息
   name: "my-application"          # 应用标识名（英文，用于内部识别）
   display_name: "我的应用"         # 显示名称（中文，用于界面展示）
   description: "这是一个示例应用"    # 应用详细描述
   version: "1.0.0"                # 应用版本
+  service_path_prefix: "/services" # 服务路径前缀
+  token_keys:                     # Token认证的HTTP头字段
+    - "Authorization"
+    - "X-API-Key"
+
+  # 服务器配置（Fiber配置）
+  host: "0.0.0.0"                 # 监听地址
+  port: 8080                      # 监听端口
+  read_timeout: "30s"             # 读取超时
+  write_timeout: "30s"            # 写入超时
+  idle_timeout: "60s"             # 空闲连接超时
+  read_buffer_size: 4096          # 读取缓冲区大小
+  write_buffer_size: 4096         # 写入缓冲区大小
+  compressed_file_suffix: ".gz"   # 压缩文件后缀
+  proxy_header: "X-Forwarded-For" # 代理头字段
+  get_only: false                 # 是否只接受GET请求
+  disable_keepalive: false        # 是否禁用Keep-Alive
+  disable_default_date: false     # 是否禁用默认Date头
+  disable_default_content_type: false # 是否禁用默认Content-Type头
+  disable_header_normalizing: false   # 是否禁用头字段标准化
+  disable_startup_message: false      # 是否禁用启动消息
+  enable_trusted_proxy_check: false   # 是否启用可信代理检查
+  prefork: false                  # 是否启用预分叉
+  strict_routing: false           # 是否启用严格路由
+  case_sensitive: false           # 路由是否大小写敏感
+  unescape_path: false            # 是否取消转义路径
+  etag: false                     # 是否启用ETag
+  body_limit: "100MB"             # 请求体大小限制
+  concurrency: 262144             # 最大并发数
+  views: "./templates"            # 模板引擎目录
+  trusted_proxies:                # 可信代理列表
+    - "127.0.0.1"
+    - "::1"
+
+  # CORS跨域配置（默认关闭）
+  cors:
+    enabled: false                # 是否启用CORS，默认关闭
+    allow_origins:                # 允许的源，启用时默认为 ["*"]
+      - "http://localhost:3000"
+      - "https://example.com"
+    allow_methods:                # 允许的HTTP方法，默认为常用方法
+      - "GET"
+      - "POST"
+      - "PUT"
+      - "DELETE"
+      - "OPTIONS"
+    allow_headers:                # 允许的请求头，默认为常用头
+      - "Origin"
+      - "Content-Type"
+      - "Accept"
+      - "Authorization"
+      - "X-Requested-With"
+    allow_credentials: false      # 是否允许携带凭证，默认false
+    expose_headers: []            # 暴露的响应头，默认为空
+    max_age: "24h"                # 预检请求缓存时间，默认24小时
 
 # 缓存配置（支持三种缓存类型）
 cache:
@@ -150,11 +206,3 @@ token:
     skip_expired_check: false             # 是否跳过过期检查
     cache_strategy: "bigcache"            # 缓存查询策略: bigcache, badger, redis
     cache_key_prefix: "token:"            # 缓存键前缀
-
-# 其他应用参数
-settings:
-  port: 8080                       # 服务监听端口
-  read_timeout: "30s"              # 读取超时
-  write_timeout: "30s"             # 写入超时
-  max_connections: 1000            # 最大连接数
-  cache_strategy: "bigcache"       # 默认缓存策略：bigcache, badger, redis

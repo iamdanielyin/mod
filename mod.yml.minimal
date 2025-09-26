@@ -1,0 +1,43 @@
+# MOD Framework 简化配置示例
+# 这是一个最小化配置，展示开箱即用的能力
+# 大部分配置都有合理的默认值，只需要配置关键信息即可
+
+app:
+  name: "my-api"
+  display_name: "My API Service"
+  description: "A simple API service"
+  version: "1.0.0"
+
+  # 可选的服务器配置（如不配置，将使用默认值）
+  # port: 8080                    # 默认: 8080
+  # body_limit: "100MB"           # 默认: 100MB
+  # read_timeout: "30s"           # 默认: 30s
+  # write_timeout: "30s"          # 默认: 30s
+  # concurrency: 262144           # 默认: 256K
+
+  # CORS跨域配置（默认关闭，如需启用前端跨域访问）
+  # cors:
+  #   enabled: true
+  #   allow_origins:
+  #     - "http://localhost:3000"
+  #   allow_credentials: true
+
+# 缓存配置 - 如果需要Token验证时启用
+cache:
+  bigcache:
+    enabled: true
+    life_window: "24h"
+    clean_window: "1h"
+
+# Token验证配置 - 如果需要认证时启用
+token:
+  validation:
+    enabled: true
+    cache_strategy: "bigcache"
+    cache_key_prefix: "token:"
+
+# 日志配置 - 默认已包含控制台输出
+logging:
+  console:
+    enabled: true
+    level: "info"
