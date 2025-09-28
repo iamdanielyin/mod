@@ -227,6 +227,61 @@ type ModConfig struct {
 		} `yaml:"validation"`
 	} `yaml:"token"`
 
+	// 服务加解密配置 - 支持三个级别的加解密设置
+	Encryption struct {
+		// 全局加解密设置
+		Global struct {
+			Enabled   bool   `yaml:"enabled"`   // 是否启用全局加解密
+			Algorithm string `yaml:"algorithm"` // 加密算法: AES256-GCM, RSA-OAEP, ChaCha20-Poly1305
+			Mode      string `yaml:"mode"`      // 加密模式: symmetric, asymmetric
+		} `yaml:"global"`
+
+		// 对称加密配置
+		Symmetric struct {
+			Algorithm string `yaml:"algorithm"` // AES256-GCM, ChaCha20-Poly1305
+			Key       string `yaml:"key"`       // 加密密钥 (base64编码)
+			KeyFile   string `yaml:"key_file"`  // 密钥文件路径
+		} `yaml:"symmetric"`
+
+		// 非对称加密配置
+		Asymmetric struct {
+			Algorithm    string `yaml:"algorithm"`     // RSA-OAEP, ECDH
+			PublicKey    string `yaml:"public_key"`    // 公钥内容 (PEM格式)
+			PrivateKey   string `yaml:"private_key"`   // 私钥内容 (PEM格式)
+			PublicKeyFile string `yaml:"public_key_file"` // 公钥文件路径
+			PrivateKeyFile string `yaml:"private_key_file"` // 私钥文件路径
+			KeySize      int    `yaml:"key_size"`      // RSA密钥长度 (2048, 3072, 4096)
+		} `yaml:"asymmetric"`
+
+		// 签名验证配置
+		Signature struct {
+			Enabled   bool   `yaml:"enabled"`   // 是否启用签名验证
+			Algorithm string `yaml:"algorithm"` // 签名算法: HMAC-SHA256, RSA-PSS, ECDSA
+			Key       string `yaml:"key"`       // 签名密钥
+			KeyFile   string `yaml:"key_file"`  // 签名密钥文件路径
+		} `yaml:"signature"`
+
+		// 分组级别加解密设置
+		Groups map[string]struct {
+			Enabled   bool   `yaml:"enabled"`   // 是否启用该分组的加解密
+			Algorithm string `yaml:"algorithm"` // 覆盖全局算法设置
+			Mode      string `yaml:"mode"`      // 覆盖全局模式设置
+		} `yaml:"groups"`
+
+		// 服务级别加解密设置
+		Services map[string]struct {
+			Enabled   bool   `yaml:"enabled"`   // 是否启用该服务的加解密
+			Algorithm string `yaml:"algorithm"` // 覆盖全局算法设置
+			Mode      string `yaml:"mode"`      // 覆盖全局模式设置
+		} `yaml:"services"`
+
+		// 白名单服务 - 跳过加解密验证
+		Whitelist struct {
+			Groups   []string `yaml:"groups"`   // 白名单分组
+			Services []string `yaml:"services"` // 白名单服务
+		} `yaml:"whitelist"`
+	} `yaml:"encryption"`
+
 	// Mock配置 - 支持三个级别的Mock设置
 	Mock struct {
 		// 全局Mock设置
@@ -2066,6 +2121,73 @@ func (app *App) RevokeJWT(tokenString string) error {
 // UseJWT enables JWT middleware for all routes
 func (app *App) UseJWT() {
 	app.Use(JWTMiddleware(app))
+}
+
+// UseOptionalJWT enables optional JWT middleware for all routes
+func (app *App) UseOptionalJWT() {
+	app.Use(OptionalJWTMiddleware(app))
+}
+
+// Encryption管理方法
+
+// EncryptData encrypts data using the configured symmetric or asymmetric algorithm
+func (app *App) EncryptData(data []byte, mode string) ([]byte, error) {
+	config := app.GetModConfig()
+	if config == nil {
+		return nil, fmt.Errorf("no configuration available")
+	}
+
+	switch mode {
+	case "symmetric":
+		symEncryption := NewSymmetricEncryption(config)
+		return symEncryption.Encrypt(data)
+	case "asymmetric":
+		asymEncryption := NewAsymmetricEncryption(config)
+		return asymEncryption.Encrypt(data)
+	default:
+		return nil, fmt.Errorf("unsupported encryption mode: %s", mode)
+	}
+}
+
+// DecryptData decrypts data using the configured symmetric or asymmetric algorithm
+func (app *App) DecryptData(data []byte, mode string) ([]byte, error) {
+	config := app.GetModConfig()
+	if config == nil {
+		return nil, fmt.Errorf("no configuration available")
+	}
+
+	switch mode {
+	case "symmetric":
+		symEncryption := NewSymmetricEncryption(config)
+		return symEncryption.Decrypt(data)
+	case "asymmetric":
+		asymEncryption := NewAsymmetricEncryption(config)
+		return asymEncryption.Decrypt(data)
+	default:
+		return nil, fmt.Errorf("unsupported encryption mode: %s", mode)
+	}
+}
+
+// SignData creates a digital signature for the given data
+func (app *App) SignData(data []byte) ([]byte, error) {
+	config := app.GetModConfig()
+	if config == nil {
+		return nil, fmt.Errorf("no configuration available")
+	}
+
+	sigVerification := NewSignatureVerification(config)
+	return sigVerification.Sign(data)
+}
+
+// VerifySignature verifies a digital signature for the given data
+func (app *App) VerifySignature(data, signature []byte) error {
+	config := app.GetModConfig()
+	if config == nil {
+		return fmt.Errorf("no configuration available")
+	}
+
+	sigVerification := NewSignatureVerification(config)
+	return sigVerification.Verify(data, signature)
 }
 
 // UseOptionalJWT enables optional JWT middleware for all routes

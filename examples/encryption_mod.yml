@@ -1,0 +1,75 @@
+app:
+  name: "EncryptionExample"
+  display_name: "加解密示例应用"
+  description: "演示MOD框架的服务加解密和签名验证功能"
+  version: "1.0.0"
+  service_path_prefix: "/services"
+  token_keys:
+    - "Authorization"
+    - "X-API-Key"
+    - "mod-token"
+
+server:
+  host: "localhost"
+  port: 8080
+  read_timeout: "30s"
+  write_timeout: "30s"
+  idle_timeout: "120s"
+  body_limit: "10MB"
+  concurrency: 256
+  cors:
+    enabled: true
+    allow_origins: ["*"]
+    allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allow_headers: ["Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"]
+    allow_credentials: false
+    max_age: "24h"
+
+logging:
+  console:
+    enabled: true
+    level: "info"
+
+# 服务加解密配置
+encryption:
+  # 全局加解密设置
+  global:
+    enabled: true              # 启用全局加解密
+    algorithm: "AES256-GCM"    # 默认使用AES256-GCM对称加密
+    mode: "symmetric"          # 默认使用对称加密模式
+
+  # 对称加密配置
+  symmetric:
+    algorithm: "AES256-GCM"                                    # 对称加密算法
+    key: "dGhpcy1pcy1hLXN1cGVyLXNlY3JldC1rZXktZm9yLWVuY3J5cHRpb24="  # Base64编码的加密密钥
+
+  # 签名验证配置
+  signature:
+    enabled: true                                              # 启用签名验证
+    algorithm: "HMAC-SHA256"                                   # 签名算法
+    key: "dGhpcy1pcy1hLXNpZ25hdHVyZS1rZXktZm9yLXZlcmlmaWNhdGlvbg=="  # Base64编码的签名密钥
+
+  # 分组级别加解密设置
+  groups:
+    "用户管理（加密）":
+      enabled: true            # 该分组启用加解密
+      algorithm: "AES256-GCM"  # 使用AES256-GCM算法
+      mode: "symmetric"        # 使用对称加密模式
+
+  # 服务级别加解密设置
+  services:
+    "create-user":
+      enabled: true            # 该服务启用加解密
+      algorithm: "AES256-GCM"  # 使用AES256-GCM算法
+      mode: "symmetric"        # 使用对称加密模式
+    "get-user":
+      enabled: true            # 该服务启用加解密
+      algorithm: "AES256-GCM"  # 使用AES256-GCM算法
+      mode: "symmetric"        # 使用对称加密模式
+
+  # 白名单服务 - 跳过加解密验证
+  whitelist:
+    groups:
+      - "用户管理（公开）"       # 公开分组跳过加解密
+    services:
+      - "get-public-user"      # 公开用户信息服务跳过加解密
