@@ -184,3 +184,74 @@ func NewErrorResponse(ctx *Context, code int, msg string, detail ...string) *Api
 	}
 	return resp
 }
+
+// JWT related methods
+
+// GetJWTClaims returns the JWT claims from the context
+func (c *Context) GetJWTClaims() *JWTClaims {
+	if claims, ok := c.Locals("jwt_claims").(*JWTClaims); ok {
+		return claims
+	}
+	return nil
+}
+
+// GetJWTToken returns the JWT token string from the context
+func (c *Context) GetJWTToken() string {
+	if token, ok := c.Locals("jwt_token").(string); ok {
+		return token
+	}
+	return ""
+}
+
+// GetUserID returns the user ID from JWT claims
+func (c *Context) GetUserID() string {
+	if userID, ok := c.Locals("user_id").(string); ok {
+		return userID
+	}
+	return ""
+}
+
+// GetUsername returns the username from JWT claims
+func (c *Context) GetUsername() string {
+	if username, ok := c.Locals("username").(string); ok {
+		return username
+	}
+	return ""
+}
+
+// GetUserEmail returns the user email from JWT claims
+func (c *Context) GetUserEmail() string {
+	if email, ok := c.Locals("user_email").(string); ok {
+		return email
+	}
+	return ""
+}
+
+// GetUserRole returns the user role from JWT claims
+func (c *Context) GetUserRole() string {
+	if role, ok := c.Locals("user_role").(string); ok {
+		return role
+	}
+	return ""
+}
+
+// IsAuthenticated checks if the request has valid JWT authentication
+func (c *Context) IsAuthenticated() bool {
+	return c.GetJWTClaims() != nil
+}
+
+// HasRole checks if the current user has the specified role
+func (c *Context) HasRole(role string) bool {
+	return c.GetUserRole() == role
+}
+
+// HasAnyRole checks if the current user has any of the specified roles
+func (c *Context) HasAnyRole(roles ...string) bool {
+	userRole := c.GetUserRole()
+	for _, role := range roles {
+		if userRole == role {
+			return true
+		}
+	}
+	return false
+}

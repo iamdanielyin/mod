@@ -2037,6 +2037,42 @@ func (app *App) validateToken(token string) bool {
 	return false
 }
 
+// JWT Token管理方法
+
+// GenerateJWT generates JWT tokens for a user
+func (app *App) GenerateJWT(userID, username, email, role string, extra map[string]interface{}) (*TokenResponse, error) {
+	jwtManager := app.GetJWTManager()
+	return jwtManager.GenerateTokens(userID, username, email, role, extra)
+}
+
+// ValidateJWT validates a JWT token
+func (app *App) ValidateJWT(tokenString string) (*JWTClaims, error) {
+	jwtManager := app.GetJWTManager()
+	return jwtManager.ValidateToken(tokenString)
+}
+
+// RefreshJWT refreshes a JWT token using refresh token
+func (app *App) RefreshJWT(refreshToken string) (*TokenResponse, error) {
+	jwtManager := app.GetJWTManager()
+	return jwtManager.RefreshToken(refreshToken)
+}
+
+// RevokeJWT revokes a JWT token
+func (app *App) RevokeJWT(tokenString string) error {
+	jwtManager := app.GetJWTManager()
+	return jwtManager.RevokeToken(tokenString)
+}
+
+// UseJWT enables JWT middleware for all routes
+func (app *App) UseJWT() {
+	app.Use(JWTMiddleware(app))
+}
+
+// UseOptionalJWT enables optional JWT middleware for all routes
+func (app *App) UseOptionalJWT() {
+	app.Use(OptionalJWTMiddleware(app))
+}
+
 // SetToken 将 token 添加到缓存中
 // 这个方法可以在用户登录时调用，将有效的 token 存储到缓存中
 func (app *App) SetToken(token string, data interface{}) error {
