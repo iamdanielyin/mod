@@ -1,0 +1,14 @@
+time="2025-09-28T12:11:51+08:00" level=info msg="Service registered" displayName="获取用户信息" method=POST path=/services/user-info returnRaw=false service=user-info skipAuth=true
+time="2025-09-28T12:11:51+08:00" level=info msg="Service registered" displayName="获取用户列表" method=POST path=/services/user-list returnRaw=false service=user-list skipAuth=true
+time="2025-09-28T12:11:51+08:00" level=info msg="Service registered" displayName="获取订单信息" method=POST path=/services/order-info returnRaw=false service=order-info skipAuth=true
+time="2025-09-28T12:11:51+08:00" level=info msg="Service registered" displayName="发送消息" method=POST path=/services/send-message returnRaw=false service=send-message skipAuth=true
+time="2025-09-28T12:11:51+08:00" level=info msg="Starting server on :8080"
+time="2025-09-28T12:12:33+08:00" level=info msg="Service registered" displayName="获取用户信息" method=POST path=/services/user-info returnRaw=false service=user-info skipAuth=true
+time="2025-09-28T12:12:33+08:00" level=info msg="Service registered" displayName="获取用户列表" method=POST path=/services/user-list returnRaw=false service=user-list skipAuth=true
+time="2025-09-28T12:12:33+08:00" level=info msg="Service registered" displayName="获取订单信息" method=POST path=/services/order-info returnRaw=false service=order-info skipAuth=true
+time="2025-09-28T12:12:33+08:00" level=info msg="Service registered" displayName="发送消息" method=POST path=/services/send-message returnRaw=false service=send-message skipAuth=true
+time="2025-09-28T12:12:33+08:00" level=info msg="Starting server on :8080"
+time="2025-09-28T12:12:50+08:00" level=info msg="Using mock data for service" group="用户管理" rid=1972152497995567104 service=user-info
+time="2025-09-28T12:13:02+08:00" level=info msg="Using mock data for service" group="用户管理" rid=1972152544661393408 service=user-list
+time="2025-09-28T12:13:14+08:00" level=info msg="Using mock data for service" group="订单管理" rid=1972152595706073088 service=order-info
+time="2025-09-28T12:19:52+08:00" level=info msg="消息发送成功" message="测试消息" message_id=msg_1759033192 to_user_id=user_789 type=text

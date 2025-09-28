@@ -1,0 +1,59 @@
+# MOD Framework 简化配置示例
+# 这是一个最小化配置，展示开箱即用的能力
+# 大部分配置都有合理的默认值，只需要配置关键信息即可
+
+app:
+  name: "my-api"
+  display_name: "My API Service"
+  description: "A simple API service"
+  version: "1.0.0"
+
+  # 可选的服务器配置（如不配置，将使用默认值）
+  # port: 8080                    # 默认: 8080
+  # body_limit: "100MB"           # 默认: 100MB
+  # read_timeout: "30s"           # 默认: 30s
+  # write_timeout: "30s"          # 默认: 30s
+  # concurrency: 262144           # 默认: 256K
+
+  # CORS跨域配置（默认关闭，如需启用前端跨域访问）
+  # cors:
+  #   enabled: true
+  #   allow_origins:
+  #     - "http://localhost:3000"
+  #   allow_credentials: true
+
+# 缓存配置 - 如果需要Token验证时启用
+cache:
+  bigcache:
+    enabled: true
+    life_window: "24h"
+    clean_window: "1h"
+
+# Token验证配置 - 如果需要认证时启用
+token:
+  validation:
+    enabled: true
+    cache_strategy: "bigcache"
+    cache_key_prefix: "token:"
+
+# 静态文件挂载（可选）
+# static_mounts:
+#   - url_prefix: "/static"        # URL访问路径
+#     local_path: "./public"       # 本地文件路径
+#     browseable: false            # 是否允许目录浏览
+#     index_file: "index.html"     # 默认首页文件
+
+# 文件上传功能（可选）
+# file_upload:
+#   local:
+#     enabled: true
+#     upload_dir: "./uploads"      # 上传目录
+#     max_size: "10MB"             # 文件大小限制
+#     allowed_types: ["image/"]    # 允许的文件类型
+#     auto_create_dir: true        # 自动创建目录
+
+# 日志配置 - 默认已包含控制台输出
+logging:
+  console:
+    enabled: true
+    level: "info"

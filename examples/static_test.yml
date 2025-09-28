@@ -1,0 +1,86 @@
+# MOD Framework 测试环境配置 - 静态文件挂载示例
+
+app:
+  name: "static-demo"
+  display_name: "静态文件服务演示"
+  description: "演示静态文件挂载功能"
+  version: "1.0.0"
+  port: 3000
+
+  # 测试环境启用CORS（方便前端开发）
+  cors:
+    enabled: true
+    allow_origins:
+      - "http://localhost:3000"
+      - "http://127.0.0.1:5173"
+    allow_credentials: true
+
+# 静态文件挂载配置 - 测试环境示例
+static_mounts:
+  # 标准静态资源目录
+  - url_prefix: "/static"
+    local_path: "./public"
+    browseable: false              # 不允许浏览目录
+    index_file: "index.html"       # 默认首页
+
+  # 开发环境允许浏览的资源目录
+  - url_prefix: "/dev"
+    local_path: "./dev-assets"
+    browseable: true               # 开发环境允许目录浏览
+    index_file: "README.md"        # 使用README作为默认文件
+
+  # 上传文件访问（测试环境可浏览）
+  - url_prefix: "/uploads"
+    local_path: "./uploads"
+    browseable: true               # 测试环境允许查看上传的文件
+    index_file: ""                 # 不设置默认文件，显示目录列表
+
+  # API文档静态资源
+  - url_prefix: "/docs"
+    local_path: "./docs"
+    browseable: true               # 允许浏览文档目录
+    index_file: "index.html"       # 文档首页
+
+  # 测试数据和mock文件
+  - url_prefix: "/mock"
+    local_path: "./test/mock"
+    browseable: true               # 允许浏览测试数据
+    index_file: "index.json"       # JSON格式的默认文件
+
+# 文件上传配置 - 测试环境
+file_upload:
+  local:
+    enabled: true
+    upload_dir: "./uploads"
+    max_size: "20MB"               # 测试环境适中的限制
+    allowed_types:                 # 测试环境允许更多类型
+      - "image/"                   # 所有图片类型
+      - "text/"                    # 所有文本类型
+      - "application/json"
+      - "application/pdf"
+    allowed_exts:                  # 宽松的扩展名限制
+      - ".jpg"
+      - ".jpeg"
+      - ".png"
+      - ".gif"
+      - ".bmp"
+      - ".webp"
+      - ".txt"
+      - ".md"
+      - ".json"
+      - ".pdf"
+      - ".zip"
+    keep_original_name: true       # 测试环境保持原文件名便于识别
+    auto_create_dir: true          # 自动创建目录
+    date_sub_dir: false            # 测试环境不按日期分类
+
+# 日志配置 - 测试环境
+logging:
+  console:
+    enabled: true
+    level: "debug"                 # 测试环境使用debug级别
+
+# Token验证配置 - 简化版
+token:
+  validation:
+    enabled: false                 # 测试环境可以关闭验证

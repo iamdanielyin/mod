@@ -1,0 +1,16 @@
+time="2025-09-27T15:20:10+08:00" level=warning msg="Static mount local path does not exist, skipping" local_path=./uploads url_prefix=/uploads
+time="2025-09-27T15:20:10+08:00" level=info msg="Local file upload configured" upload_dir=./uploads
+time="2025-09-27T15:20:10+08:00" level=info msg="File upload configured successfully" local_enabled=true max_size=10485760 oss_enabled=false s3_enabled=false
+time="2025-09-27T15:20:10+08:00" level=info msg="Service registered" displayName="日志测试" method=POST path=/services/log-test returnRaw=false service=log-test skipAuth=true
+time="2025-09-27T15:20:10+08:00" level=info msg="Service registered" displayName="错误测试" method=POST path=/services/error-test returnRaw=false service=error-test skipAuth=true
+time="2025-09-27T15:20:10+08:00" level=info msg="Starting server on 0.0.0.0:8080"
+time="2025-09-27T15:22:47+08:00" level=info msg="Static mount configured successfully" browseable=true index_file=index.html local_path=./uploads url_prefix=/uploads
+time="2025-09-27T15:22:47+08:00" level=info msg="Local file upload configured" upload_dir=./uploads
+time="2025-09-27T15:22:47+08:00" level=info msg="File upload configured successfully" local_enabled=true max_size=10485760 oss_enabled=false s3_enabled=false
+time="2025-09-27T15:22:47+08:00" level=info msg="Service registered" displayName="日志测试" method=POST path=/services/log-test returnRaw=false service=log-test skipAuth=true
+time="2025-09-27T15:22:47+08:00" level=info msg="Service registered" displayName="错误测试" method=POST path=/services/error-test returnRaw=false service=error-test skipAuth=true
+time="2025-09-27T15:22:47+08:00" level=info msg="Starting server on 0.0.0.0:8081"
+time="2025-09-27T15:23:08+08:00" level=info msg="测试文件日志功能" service=log-test
+time="2025-09-27T15:23:08+08:00" level=info msg="Log test request processed" fields.level=info ip=127.0.0.1 message="测试文件日志功能" request_id=1971837996582506496 user_agent=curl/8.7.1
+time="2025-09-27T15:25:31+08:00" level=warning msg="Business logic error" error_type=business message="测试业务错误日志" request_id=1971838598498684928
+time="2025-09-27T15:25:31+08:00" level=error msg="Service handler failed" error="业务逻辑错误 (400)" params="&{ErrorType:business Message:测试业务错误日志}" rid=1971838598498684928 service=error-test
