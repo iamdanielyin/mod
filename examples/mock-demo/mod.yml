@@ -7,6 +7,10 @@ app:
   display_name: "Mock功能演示"
   description: "演示MOD框架的Mock功能"
   version: "1.0.0"
+
+# 服务器配置
+server:
+  host: "localhost"
   port: 8080
 
 # Mock配置 - 支持三个级别的Mock设置

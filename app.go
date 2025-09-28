@@ -601,21 +601,21 @@ func New(config ...Config) *App {
 	cfg.Config.CompressedFileSuffix = ".gz"  // 支持Gzip压缩文件
 
 	// CORS 默认配置（默认关闭）
-	if cfg.ModConfig.App.CORS.Enabled && len(cfg.ModConfig.App.CORS.AllowOrigins) == 0 {
+	if cfg.ModConfig.Server.CORS.Enabled && len(cfg.ModConfig.Server.CORS.AllowOrigins) == 0 {
 		// 如果启用了CORS但没有配置允许的源，设置安全的默认值
-		cfg.ModConfig.App.CORS.AllowOrigins = []string{"*"}
+		cfg.ModConfig.Server.CORS.AllowOrigins = []string{"*"}
 	}
-	if cfg.ModConfig.App.CORS.Enabled && len(cfg.ModConfig.App.CORS.AllowMethods) == 0 {
+	if cfg.ModConfig.Server.CORS.Enabled && len(cfg.ModConfig.Server.CORS.AllowMethods) == 0 {
 		// 默认允许的HTTP方法
-		cfg.ModConfig.App.CORS.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+		cfg.ModConfig.Server.CORS.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	}
-	if cfg.ModConfig.App.CORS.Enabled && len(cfg.ModConfig.App.CORS.AllowHeaders) == 0 {
+	if cfg.ModConfig.Server.CORS.Enabled && len(cfg.ModConfig.Server.CORS.AllowHeaders) == 0 {
 		// 默认允许的请求头
-		cfg.ModConfig.App.CORS.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"}
+		cfg.ModConfig.Server.CORS.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"}
 	}
-	if cfg.ModConfig.App.CORS.Enabled && cfg.ModConfig.App.CORS.MaxAge == "" {
+	if cfg.ModConfig.Server.CORS.Enabled && cfg.ModConfig.Server.CORS.MaxAge == "" {
 		// 默认预检请求缓存时间
-		cfg.ModConfig.App.CORS.MaxAge = "24h"
+		cfg.ModConfig.Server.CORS.MaxAge = "24h"
 	}
 
 	// 日志配置默认值
@@ -679,12 +679,12 @@ func New(config ...Config) *App {
 // configureCORS 配置CORS中间件
 func (app *App) configureCORS() {
 	// 检查是否启用CORS
-	if app.cfg.ModConfig == nil || !app.cfg.ModConfig.App.CORS.Enabled {
+	if app.cfg.ModConfig == nil || !app.cfg.ModConfig.Server.CORS.Enabled {
 		app.logger.Debug("CORS is disabled")
 		return
 	}
 
-	corsConfig := app.cfg.ModConfig.App.CORS
+	corsConfig := app.cfg.ModConfig.Server.CORS
 
 	// 解析MaxAge
 	var maxAge int
@@ -1734,11 +1734,11 @@ func (app *App) Run(addr ...string) {
 		port := 8080 // 默认端口
 
 		if app.cfg.ModConfig != nil {
-			if app.cfg.ModConfig.App.Host != "" {
-				host = app.cfg.ModConfig.App.Host
+			if app.cfg.ModConfig.Server.Host != "" {
+				host = app.cfg.ModConfig.Server.Host
 			}
-			if app.cfg.ModConfig.App.Port > 0 {
-				port = app.cfg.ModConfig.App.Port
+			if app.cfg.ModConfig.Server.Port > 0 {
+				port = app.cfg.ModConfig.Server.Port
 			}
 		}
 

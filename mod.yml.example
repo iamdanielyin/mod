@@ -2,7 +2,7 @@
 # This file will be automatically loaded when the application starts
 # Environment variable MOD_PATH can be used to specify a custom path
 
-# 应用基本信息与服务器配置
+# 应用基本信息
 app:
   # 应用基础信息
   name: "my-application"          # 应用标识名（英文，用于内部识别）
@@ -14,16 +14,31 @@ app:
     - "Authorization"
     - "X-API-Key"
 
-  # 服务器配置（Fiber配置）
+# 服务器配置（独立的server节点）
+server:
+  # 基础网络配置
   host: "0.0.0.0"                 # 监听地址
   port: 8080                      # 监听端口
+
+  # 超时配置
   read_timeout: "30s"             # 读取超时
   write_timeout: "30s"            # 写入超时
   idle_timeout: "60s"             # 空闲连接超时
+
+  # 缓冲区配置
   read_buffer_size: 4096          # 读取缓冲区大小
   write_buffer_size: 4096         # 写入缓冲区大小
+
+  # 请求限制
+  body_limit: "100MB"             # 请求体大小限制
+  concurrency: 262144             # 最大并发数
+
+  # 文件和代理配置
   compressed_file_suffix: ".gz"   # 压缩文件后缀
   proxy_header: "X-Forwarded-For" # 代理头字段
+  views: "./templates"            # 模板引擎目录
+
+  # 功能开关
   get_only: false                 # 是否只接受GET请求
   disable_keepalive: false        # 是否禁用Keep-Alive
   disable_default_date: false     # 是否禁用默认Date头
@@ -36,9 +51,8 @@ app:
   case_sensitive: false           # 路由是否大小写敏感
   unescape_path: false            # 是否取消转义路径
   etag: false                     # 是否启用ETag
-  body_limit: "100MB"             # 请求体大小限制
-  concurrency: 262144             # 最大并发数
-  views: "./templates"            # 模板引擎目录
+
+  # 可信代理列表
   trusted_proxies:                # 可信代理列表
     - "127.0.0.1"
     - "::1"
