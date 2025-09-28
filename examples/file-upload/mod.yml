@@ -1,0 +1,54 @@
+app:
+  name: "FileUpload"
+  display_name: "文件上传示例"
+  description: "演示MOD框架的文件上传功能"
+  version: "1.0.0"
+  service_path_prefix: "/services"
+
+server:
+  host: "localhost"
+  port: 8080
+  cors:
+    enabled: true
+    allow_origins: ["*"]
+    allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allow_headers: ["Origin", "Content-Type", "Accept", "Authorization"]
+
+file_upload:
+  local:
+    enabled: true
+    upload_dir: "./uploads"
+    max_size: "50MB"
+    allowed_types: ["image/jpeg", "image/png", "image/gif", "application/pdf", "text/plain"]
+    allowed_exts: [".jpg", ".jpeg", ".png", ".gif", ".pdf", ".txt"]
+    keep_original_name: true
+    auto_create_dir: true
+    date_sub_dir: true
+
+  # S3配置示例（需要配置实际的凭证）
+  s3:
+    enabled: false
+    bucket: "my-bucket"
+    region: "us-east-1"
+    access_key: "your-access-key"
+    secret_key: "your-secret-key"
+    endpoint: ""  # 可选，用于MinIO等S3兼容服务
+
+  # 阿里云OSS配置示例（需要配置实际的凭证）
+  oss:
+    enabled: false
+    bucket: "my-oss-bucket"
+    endpoint: "oss-cn-shenzhen.aliyuncs.com"
+    access_key_id: "your-access-key-id"
+    access_key_secret: "your-access-key-secret"
+
+static_mounts:
+  - url_prefix: "/uploads"
+    local_path: "./uploads"
+    browseable: true
+    index_file: "index.html"
+
+logging:
+  console:
+    enabled: true
+    level: "info"

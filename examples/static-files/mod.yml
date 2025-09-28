@@ -1,0 +1,40 @@
+app:
+  name: "StaticFiles"
+  display_name: "静态文件示例"
+  description: "演示MOD框架的静态文件服务功能"
+  version: "1.0.0"
+  service_path_prefix: "/services"
+
+server:
+  host: "localhost"
+  port: 8080
+  cors:
+    enabled: true
+    allow_origins: ["*"]
+    allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allow_headers: ["Origin", "Content-Type", "Accept", "Authorization"]
+
+# 静态文件挂载配置
+static_mounts:
+  # 挂载静态资源目录
+  - url_prefix: "/static"
+    local_path: "./static"
+    browseable: true
+    index_file: "index.html"
+
+  # 挂载图片目录
+  - url_prefix: "/images"
+    local_path: "./images"
+    browseable: true
+    index_file: ""
+
+  # 挂载文档目录
+  - url_prefix: "/docs"
+    local_path: "./docs"
+    browseable: false
+    index_file: "README.md"
+
+logging:
+  console:
+    enabled: true
+    level: "info"
