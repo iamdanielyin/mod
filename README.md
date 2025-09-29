@@ -88,18 +88,15 @@ func main() {
         Name:        "get_user",
         DisplayName: "获取用户信息",
         Description: "根据用户ID获取用户详细信息",
-        Handler:     mod.MakeHandler(handleGetUser),
-        Group:       "用户管理",
+        Handler: mod.MakeHandler(func(ctx *mod.Context, req *GetUserRequest, resp *GetUserResponse) error {
+            resp.Name = "张三"
+            resp.Email = "zhangsan@example.com"
+            return nil
+        }),
+        Group: "用户管理",
     })
 
     app.Run(":8080")
-}
-
-// 服务处理函数
-func handleGetUser(ctx *mod.Context, req *GetUserRequest, resp *GetUserResponse) error {
-    resp.Name = "张三"
-    resp.Email = "zhangsan@example.com"
-    return nil
 }
 ```
 
