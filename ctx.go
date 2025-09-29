@@ -11,6 +11,7 @@ type Context struct {
 	*fiber.Ctx
 	RequestID string
 	logger    *logrus.Logger
+	app       *App
 }
 
 func (c *Context) GetRequestID() string {
@@ -23,6 +24,16 @@ func (c *Context) GetRequestID() string {
 // GetLogger returns the logger instance
 func (c *Context) GetLogger() *logrus.Logger {
 	return c.logger
+}
+
+// Logger returns the logger instance (alias for GetLogger)
+func (c *Context) Logger() *logrus.Logger {
+	return c.logger
+}
+
+// App returns the App instance
+func (c *Context) App() *App {
+	return c.app
 }
 
 // Logger methods with automatic rid inclusion

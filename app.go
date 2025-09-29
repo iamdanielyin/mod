@@ -245,12 +245,12 @@ type ModConfig struct {
 
 		// 非对称加密配置
 		Asymmetric struct {
-			Algorithm    string `yaml:"algorithm"`     // RSA-OAEP, ECDH
-			PublicKey    string `yaml:"public_key"`    // 公钥内容 (PEM格式)
-			PrivateKey   string `yaml:"private_key"`   // 私钥内容 (PEM格式)
-			PublicKeyFile string `yaml:"public_key_file"` // 公钥文件路径
+			Algorithm      string `yaml:"algorithm"`        // RSA-OAEP, ECDH
+			PublicKey      string `yaml:"public_key"`       // 公钥内容 (PEM格式)
+			PrivateKey     string `yaml:"private_key"`      // 私钥内容 (PEM格式)
+			PublicKeyFile  string `yaml:"public_key_file"`  // 公钥文件路径
 			PrivateKeyFile string `yaml:"private_key_file"` // 私钥文件路径
-			KeySize      int    `yaml:"key_size"`      // RSA密钥长度 (2048, 3072, 4096)
+			KeySize        int    `yaml:"key_size"`         // RSA密钥长度 (2048, 3072, 4096)
 		} `yaml:"asymmetric"`
 
 		// 签名验证配置
@@ -2128,6 +2128,11 @@ func (app *App) UseOptionalJWT() {
 	app.Use(OptionalJWTMiddleware(app))
 }
 
+// UseEncryption enables encryption middleware for all routes
+func (app *App) UseEncryption() {
+	app.Use(EncryptionMiddleware(app))
+}
+
 // Encryption管理方法
 
 // EncryptData encrypts data using the configured symmetric or asymmetric algorithm
@@ -2139,10 +2144,16 @@ func (app *App) EncryptData(data []byte, mode string) ([]byte, error) {
 
 	switch mode {
 	case "symmetric":
-		symEncryption := NewSymmetricEncryption(config)
+		symEncryption, err := NewSymmetricEncryption(config)
+		if err != nil {
+			return nil, err
+		}
 		return symEncryption.Encrypt(data)
 	case "asymmetric":
-		asymEncryption := NewAsymmetricEncryption(config)
+		asymEncryption, err := NewAsymmetricEncryption(config)
+		if err != nil {
+			return nil, err
+		}
 		return asymEncryption.Encrypt(data)
 	default:
 		return nil, fmt.Errorf("unsupported encryption mode: %s", mode)
@@ -2158,10 +2169,16 @@ func (app *App) DecryptData(data []byte, mode string) ([]byte, error) {
 
 	switch mode {
 	case "symmetric":
-		symEncryption := NewSymmetricEncryption(config)
+		symEncryption, err := NewSymmetricEncryption(config)
+		if err != nil {
+			return nil, err
+		}
 		return symEncryption.Decrypt(data)
 	case "asymmetric":
-		asymEncryption := NewAsymmetricEncryption(config)
+		asymEncryption, err := NewAsymmetricEncryption(config)
+		if err != nil {
+			return nil, err
+		}
 		return asymEncryption.Decrypt(data)
 	default:
 		return nil, fmt.Errorf("unsupported encryption mode: %s", mode)
@@ -2188,11 +2205,6 @@ func (app *App) VerifySignature(data, signature []byte) error {
 
 	sigVerification := NewSignatureVerification(config)
 	return sigVerification.Verify(data, signature)
-}
-
-// UseOptionalJWT enables optional JWT middleware for all routes
-func (app *App) UseOptionalJWT() {
-	app.Use(OptionalJWTMiddleware(app))
 }
 
 // SetToken 将 token 添加到缓存中

@@ -6,97 +6,112 @@ import (
 	"fmt"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/sirupsen/logrus"
 )
 
-// EncryptionMiddleware provides encryption and decryption middleware for services
+// EncryptedRequest 加密的请求格式
+type EncryptedRequest struct {
+	Data      string `json:"data"`      // Base64编码的加密数据
+	Signature string `json:"signature"` // Base64编码的签名
+	Mode      string `json:"mode"`      // 加密模式: symmetric/asymmetric
+}
+
+// EncryptedResponse 加密的响应格式
+type EncryptedResponse struct {
+	Data      string `json:"data"`      // Base64编码的加密数据
+	Signature string `json:"signature"` // Base64编码的签名
+	Mode      string `json:"mode"`      // 加密模式: symmetric/asymmetric
+}
+
+// EncryptionMiddleware 加解密中间件
 func EncryptionMiddleware(app *App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Skip if encryption is not enabled globally
-		encManager := app.GetEncryptionManager()
-		if !encManager.IsEnabled() {
+		config := app.GetModConfig()
+		if config == nil || !config.Encryption.Global.Enabled {
 			return c.Next()
 		}
 
-		// Extract service information from path
-		serviceName := extractServiceName(c.Path(), app.cfg.ModConfig.App.ServicePathPrefix)
-		if serviceName == "" {
-			return c.Next() // Not a service endpoint
-		}
+		// 获取服务和分组名称
+		serviceName := c.Params("service", "")
+		groupName := ""
 
-		// Get service configuration
-		service := findServiceByName(app.services, serviceName)
-		if service == nil {
-			return c.Next() // Service not found
-		}
-
-		// Check if encryption is enabled for this service
-		if !encManager.IsServiceEnabled(serviceName, service.Group) {
+		// 检查是否需要加密
+		if !CheckEncryption(config, serviceName, groupName) {
 			return c.Next()
 		}
 
-		// Get encryption mode and algorithm
-		mode := encManager.GetEncryptionMode(serviceName, service.Group)
-		algorithm := encManager.GetEncryptionAlgorithm(serviceName, service.Group)
-
-		ctx := &Context{Ctx: c, logger: app.logger}
-
-		// Process request (decrypt and verify signature)
-		if err := processEncryptedRequest(ctx, app.cfg.ModConfig, mode, algorithm); err != nil {
-			app.logger.WithFields(logrus.Fields{
-				"service":   serviceName,
-				"group":     service.Group,
-				"mode":      mode,
-				"algorithm": algorithm,
-				"error":     err.Error(),
-				"rid":       ctx.GetRequestID(),
-			}).Error("Failed to process encrypted request")
-
-			return c.Status(400).JSON(NewErrorResponse(ctx, 400, "Decryption failed", err.Error()))
+		// 解密请求
+		if err := decryptRequest(c, config); err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("Failed to decrypt request: %v", err))
 		}
 
-		return c.Next()
+		// 继续处理
+		if err := c.Next(); err != nil {
+			return err
+		}
+
+		// 加密响应
+		if err := encryptResponse(c, config); err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, fmt.Sprintf("Failed to encrypt response: %v", err))
+		}
+
+		return nil
 	}
 }
 
-// processEncryptedRequest handles the decryption and signature verification of the request
-func processEncryptedRequest(ctx *Context, config *ModConfig, mode, algorithm string) error {
-	// Parse the encrypted request body
-	var encryptedReq EncryptedRequest
-	if err := ctx.BodyParser(&encryptedReq); err != nil {
-		return fmt.Errorf("failed to parse encrypted request: %w", err)
+// 解密请求
+func decryptRequest(c *fiber.Ctx, config *ModConfig) error {
+	var encReq EncryptedRequest
+	if err := c.BodyParser(&encReq); err != nil {
+		return err
 	}
 
-	// Decode the encrypted data and signature
-	encryptedData, err := base64.StdEncoding.DecodeString(encryptedReq.Data)
+	// 验证签名
+	if config.Encryption.Signature.Enabled {
+		sigVerification := NewSignatureVerification(config)
+		if sigVerification != nil {
+			dataBytes, err := base64.StdEncoding.DecodeString(encReq.Data)
+			if err != nil {
+				return fmt.Errorf("failed to decode data for signature verification: %w", err)
+			}
+
+			signatureBytes, err := base64.StdEncoding.DecodeString(encReq.Signature)
+			if err != nil {
+				return fmt.Errorf("failed to decode signature: %w", err)
+			}
+
+			if err := sigVerification.Verify(dataBytes, signatureBytes); err != nil {
+				return fmt.Errorf("signature verification failed: %w", err)
+			}
+		}
+	}
+
+	// 解密数据
+	encryptedData, err := base64.StdEncoding.DecodeString(encReq.Data)
 	if err != nil {
 		return fmt.Errorf("failed to decode encrypted data: %w", err)
 	}
 
-	signature, err := base64.StdEncoding.DecodeString(encryptedReq.Signature)
-	if err != nil {
-		return fmt.Errorf("failed to decode signature: %w", err)
-	}
-
-	// Verify signature first (before decryption)
-	if config.Encryption.Signature.Enabled {
-		sigVerifier := NewSignatureVerification(config)
-		if err := sigVerifier.Verify(encryptedData, signature); err != nil {
-			return fmt.Errorf("signature verification failed: %w", err)
-		}
-	}
-
-	// Decrypt the data
 	var decryptedData []byte
+	mode := encReq.Mode
+	if mode == "" {
+		mode = config.Encryption.Global.Mode
+	}
+
 	switch mode {
 	case "symmetric":
-		symEncryption := NewSymmetricEncryption(config)
+		symEncryption, err := NewSymmetricEncryption(config)
+		if err != nil {
+			return fmt.Errorf("failed to create symmetric encryption: %w", err)
+		}
 		decryptedData, err = symEncryption.Decrypt(encryptedData)
 		if err != nil {
 			return fmt.Errorf("symmetric decryption failed: %w", err)
 		}
 	case "asymmetric":
-		asymEncryption := NewAsymmetricEncryption(config)
+		asymEncryption, err := NewAsymmetricEncryption(config)
+		if err != nil {
+			return fmt.Errorf("failed to create asymmetric encryption: %w", err)
+		}
 		decryptedData, err = asymEncryption.Decrypt(encryptedData)
 		if err != nil {
 			return fmt.Errorf("asymmetric decryption failed: %w", err)
@@ -105,131 +120,72 @@ func processEncryptedRequest(ctx *Context, config *ModConfig, mode, algorithm st
 		return fmt.Errorf("unsupported encryption mode: %s", mode)
 	}
 
-	// Replace the request body with decrypted data
-	ctx.Request().SetBody(decryptedData)
-	ctx.Request().Header.Set("Content-Type", "application/json")
+	// 替换请求体
+	c.Request().SetBody(decryptedData)
 
 	return nil
 }
 
-// EncryptedRequest represents the structure of an encrypted request
-type EncryptedRequest struct {
-	Data      string `json:"data"`      // Base64 encoded encrypted data
-	Signature string `json:"signature"` // Base64 encoded signature
-	Algorithm string `json:"algorithm"` // Encryption algorithm used
-	Mode      string `json:"mode"`      // Encryption mode (symmetric/asymmetric)
-}
-
-// EncryptedResponse represents the structure of an encrypted response
-type EncryptedResponse struct {
-	Data      string `json:"data"`      // Base64 encoded encrypted data
-	Signature string `json:"signature"` // Base64 encoded signature
-	Algorithm string `json:"algorithm"` // Encryption algorithm used
-	Mode      string `json:"mode"`      // Encryption mode (symmetric/asymmetric)
-}
-
-// EncryptResponse encrypts a response based on the service configuration
-func EncryptResponse(app *App, serviceName, groupName string, data []byte) (*EncryptedResponse, error) {
-	encManager := app.GetEncryptionManager()
-	if !encManager.IsServiceEnabled(serviceName, groupName) {
-		return nil, fmt.Errorf("encryption not enabled for service %s", serviceName)
+// 加密响应
+func encryptResponse(c *fiber.Ctx, config *ModConfig) error {
+	originalBody := c.Response().Body()
+	if len(originalBody) == 0 {
+		return nil
 	}
 
-	mode := encManager.GetEncryptionMode(serviceName, groupName)
-	algorithm := encManager.GetEncryptionAlgorithm(serviceName, groupName)
-	config := app.cfg.ModConfig
-
-	// Encrypt the data
+	mode := config.Encryption.Global.Mode
 	var encryptedData []byte
 	var err error
 
 	switch mode {
 	case "symmetric":
-		symEncryption := NewSymmetricEncryption(config)
-		encryptedData, err = symEncryption.Encrypt(data)
+		symEncryption, err := NewSymmetricEncryption(config)
 		if err != nil {
-			return nil, fmt.Errorf("symmetric encryption failed: %w", err)
+			return fmt.Errorf("failed to create symmetric encryption: %w", err)
+		}
+		encryptedData, err = symEncryption.Encrypt(originalBody)
+		if err != nil {
+			return fmt.Errorf("symmetric encryption failed: %w", err)
 		}
 	case "asymmetric":
-		asymEncryption := NewAsymmetricEncryption(config)
-		encryptedData, err = asymEncryption.Encrypt(data)
+		asymEncryption, err := NewAsymmetricEncryption(config)
 		if err != nil {
-			return nil, fmt.Errorf("asymmetric encryption failed: %w", err)
+			return fmt.Errorf("failed to create asymmetric encryption: %w", err)
+		}
+		encryptedData, err = asymEncryption.Encrypt(originalBody)
+		if err != nil {
+			return fmt.Errorf("asymmetric encryption failed: %w", err)
 		}
 	default:
-		return nil, fmt.Errorf("unsupported encryption mode: %s", mode)
+		return fmt.Errorf("unsupported encryption mode: %s", mode)
 	}
 
-	// Create signature if enabled
+	// 生成签名
 	var signature []byte
 	if config.Encryption.Signature.Enabled {
-		sigVerifier := NewSignatureVerification(config)
-		signature, err = sigVerifier.Sign(encryptedData)
-		if err != nil {
-			return nil, fmt.Errorf("signing failed: %w", err)
+		sigVerification := NewSignatureVerification(config)
+		if sigVerification != nil {
+			signature, err = sigVerification.Sign(encryptedData)
+			if err != nil {
+				return fmt.Errorf("failed to sign response: %w", err)
+			}
 		}
 	}
 
-	return &EncryptedResponse{
+	// 构造加密响应
+	encResp := EncryptedResponse{
 		Data:      base64.StdEncoding.EncodeToString(encryptedData),
 		Signature: base64.StdEncoding.EncodeToString(signature),
-		Algorithm: algorithm,
 		Mode:      mode,
-	}, nil
-}
-
-// extractServiceName extracts the service name from the request path
-func extractServiceName(path, servicePathPrefix string) string {
-	if len(path) <= len(servicePathPrefix)+1 {
-		return ""
 	}
 
-	if path[:len(servicePathPrefix)] != servicePathPrefix {
-		return ""
+	responseData, err := json.Marshal(encResp)
+	if err != nil {
+		return fmt.Errorf("failed to marshal encrypted response: %w", err)
 	}
 
-	// Remove service path prefix and leading slash
-	servicePath := path[len(servicePathPrefix):]
-	if servicePath[0] == '/' {
-		servicePath = servicePath[1:]
-	}
+	c.Response().SetBody(responseData)
+	c.Set("Content-Type", "application/json")
 
-	return servicePath
-}
-
-// findServiceByName finds a service by its name in the services list
-func findServiceByName(services []Service, name string) *Service {
-	for _, service := range services {
-		if service.Name == name {
-			return &service
-		}
-	}
 	return nil
-}
-
-// UseEncryption enables encryption middleware for all service routes
-func (app *App) UseEncryption() {
-	app.Use(EncryptionMiddleware(app))
-}
-
-// EncryptServiceResponse encrypts a service response if encryption is enabled
-func (app *App) EncryptServiceResponse(serviceName, groupName string, response interface{}) (interface{}, error) {
-	encManager := app.GetEncryptionManager()
-	if !encManager.IsServiceEnabled(serviceName, groupName) {
-		return response, nil // No encryption needed
-	}
-
-	// Marshal the response to JSON
-	responseData, err := json.Marshal(response)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
-	}
-
-	// Encrypt the response
-	encryptedResp, err := EncryptResponse(app, serviceName, groupName, responseData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt response: %w", err)
-	}
-
-	return encryptedResp, nil
 }

@@ -1,12 +1,8 @@
 package mod
 
 import (
-	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/ecdh"
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
@@ -18,727 +14,405 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/big"
 
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
-// EncryptionManager manages encryption and decryption operations
+// EncryptionManager 加解密管理器
 type EncryptionManager struct {
-	app    *App
 	config *ModConfig
 }
 
-// NewEncryptionManager creates a new encryption manager instance
-func NewEncryptionManager(app *App) *EncryptionManager {
+// NewEncryptionManager 创建加解密管理器
+func NewEncryptionManager(config *ModConfig) *EncryptionManager {
 	return &EncryptionManager{
-		app:    app,
-		config: app.GetModConfig(),
+		config: config,
 	}
 }
 
-// IsEnabled checks if encryption is enabled globally
-func (e *EncryptionManager) IsEnabled() bool {
-	return e.config != nil && e.config.Encryption.Global.Enabled
-}
-
-// IsServiceEnabled checks if encryption is enabled for a specific service
-func (e *EncryptionManager) IsServiceEnabled(serviceName, groupName string) bool {
-	if !e.IsEnabled() {
-		return false
-	}
-
-	// Check whitelist first
-	for _, whitelistService := range e.config.Encryption.Whitelist.Services {
-		if whitelistService == serviceName {
-			return false
-		}
-	}
-	for _, whitelistGroup := range e.config.Encryption.Whitelist.Groups {
-		if whitelistGroup == groupName {
-			return false
-		}
-	}
-
-	// Check service-specific configuration
-	if serviceConfig, exists := e.config.Encryption.Services[serviceName]; exists {
-		return serviceConfig.Enabled
-	}
-
-	// Check group-specific configuration
-	if groupConfig, exists := e.config.Encryption.Groups[groupName]; exists {
-		return groupConfig.Enabled
-	}
-
-	// Fall back to global configuration
-	return e.config.Encryption.Global.Enabled
-}
-
-// GetEncryptionMode returns the encryption mode for a service
-func (e *EncryptionManager) GetEncryptionMode(serviceName, groupName string) string {
-	// Check service-specific configuration
-	if serviceConfig, exists := e.config.Encryption.Services[serviceName]; exists && serviceConfig.Mode != "" {
-		return serviceConfig.Mode
-	}
-
-	// Check group-specific configuration
-	if groupConfig, exists := e.config.Encryption.Groups[groupName]; exists && groupConfig.Mode != "" {
-		return groupConfig.Mode
-	}
-
-	// Fall back to global configuration
-	return e.config.Encryption.Global.Mode
-}
-
-// GetEncryptionAlgorithm returns the encryption algorithm for a service
-func (e *EncryptionManager) GetEncryptionAlgorithm(serviceName, groupName string) string {
-	// Check service-specific configuration
-	if serviceConfig, exists := e.config.Encryption.Services[serviceName]; exists && serviceConfig.Algorithm != "" {
-		return serviceConfig.Algorithm
-	}
-
-	// Check group-specific configuration
-	if groupConfig, exists := e.config.Encryption.Groups[groupName]; exists && groupConfig.Algorithm != "" {
-		return groupConfig.Algorithm
-	}
-
-	// Fall back to global configuration
-	return e.config.Encryption.Global.Algorithm
-}
-
-// SymmetricEncryption handles symmetric encryption operations
+// SymmetricEncryption 对称加密
 type SymmetricEncryption struct {
-	config *ModConfig
+	Algorithm string
+	Key       []byte
 }
 
-// NewSymmetricEncryption creates a new symmetric encryption instance
-func NewSymmetricEncryption(config *ModConfig) *SymmetricEncryption {
-	return &SymmetricEncryption{config: config}
-}
-
-// getKey returns the encryption key from configuration
-func (s *SymmetricEncryption) getKey() ([]byte, error) {
-	if s.config.Encryption.Symmetric.Key != "" {
-		// Decode base64 key
-		return base64.StdEncoding.DecodeString(s.config.Encryption.Symmetric.Key)
+// NewSymmetricEncryption 创建对称加密实例
+func NewSymmetricEncryption(config *ModConfig) (*SymmetricEncryption, error) {
+	if config == nil {
+		return nil, errors.New("config is nil")
 	}
 
-	if s.config.Encryption.Symmetric.KeyFile != "" {
-		// Read key from file
-		keyData, err := ioutil.ReadFile(s.config.Encryption.Symmetric.KeyFile)
+	symConfig := config.Encryption.Symmetric
+
+	var key []byte
+	var err error
+
+	if symConfig.KeyFile != "" {
+		key, err = ioutil.ReadFile(symConfig.KeyFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read key file: %w", err)
 		}
-
-		// Try to decode as base64, if fails use raw data
-		if decoded, err := base64.StdEncoding.DecodeString(string(keyData)); err == nil {
-			return decoded, nil
+	} else if symConfig.Key != "" {
+		key, err = base64.StdEncoding.DecodeString(symConfig.Key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode key: %w", err)
 		}
-		return keyData, nil
+	} else {
+		return nil, errors.New("no key specified")
 	}
 
-	return nil, errors.New("no encryption key configured")
+	return &SymmetricEncryption{
+		Algorithm: symConfig.Algorithm,
+		Key:       key,
+	}, nil
 }
 
-// deriveKey derives a 32-byte key from the configured key material
-func (s *SymmetricEncryption) deriveKey() ([]byte, error) {
-	keyMaterial, err := s.getKey()
+// Encrypt 对称加密
+func (s *SymmetricEncryption) Encrypt(plaintext []byte) ([]byte, error) {
+	switch s.Algorithm {
+	case "AES256-GCM":
+		return s.encryptAESGCM(plaintext)
+	case "ChaCha20-Poly1305":
+		return s.encryptChaCha20Poly1305(plaintext)
+	default:
+		return nil, fmt.Errorf("unsupported algorithm: %s", s.Algorithm)
+	}
+}
+
+// Decrypt 对称解密
+func (s *SymmetricEncryption) Decrypt(ciphertext []byte) ([]byte, error) {
+	switch s.Algorithm {
+	case "AES256-GCM":
+		return s.decryptAESGCM(ciphertext)
+	case "ChaCha20-Poly1305":
+		return s.decryptChaCha20Poly1305(ciphertext)
+	default:
+		return nil, fmt.Errorf("unsupported algorithm: %s", s.Algorithm)
+	}
+}
+
+// AES-GCM 加密
+func (s *SymmetricEncryption) encryptAESGCM(plaintext []byte) ([]byte, error) {
+	block, err := aes.NewCipher(s.Key)
 	if err != nil {
 		return nil, err
 	}
 
-	// Use SHA256 to derive a consistent 32-byte key
-	hash := sha256.Sum256(keyMaterial)
-	return hash[:], nil
-}
-
-// EncryptAES256GCM encrypts data using AES-256-GCM
-func (s *SymmetricEncryption) EncryptAES256GCM(plaintext []byte) ([]byte, error) {
-	key, err := s.deriveKey()
+	aesGCM, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, err
 	}
 
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create GCM: %w", err)
-	}
-
-	// Generate a random nonce
-	nonce := make([]byte, gcm.NonceSize())
+	nonce := make([]byte, aesGCM.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, fmt.Errorf("failed to generate nonce: %w", err)
+		return nil, err
 	}
 
-	// Encrypt the data
-	ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
+	ciphertext := aesGCM.Seal(nonce, nonce, plaintext, nil)
 	return ciphertext, nil
 }
 
-// DecryptAES256GCM decrypts data using AES-256-GCM
-func (s *SymmetricEncryption) DecryptAES256GCM(ciphertext []byte) ([]byte, error) {
-	key, err := s.deriveKey()
+// AES-GCM 解密
+func (s *SymmetricEncryption) decryptAESGCM(ciphertext []byte) ([]byte, error) {
+	block, err := aes.NewCipher(s.Key)
 	if err != nil {
 		return nil, err
 	}
 
-	block, err := aes.NewCipher(key)
+	aesGCM, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
+		return nil, err
 	}
 
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create GCM: %w", err)
-	}
-
-	if len(ciphertext) < gcm.NonceSize() {
+	nonceSize := aesGCM.NonceSize()
+	if len(ciphertext) < nonceSize {
 		return nil, errors.New("ciphertext too short")
 	}
 
-	// Extract nonce and ciphertext
-	nonce := ciphertext[:gcm.NonceSize()]
-	ciphertext = ciphertext[gcm.NonceSize():]
-
-	// Decrypt the data
-	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt: %w", err)
-	}
-
-	return plaintext, nil
+	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+	return aesGCM.Open(nil, nonce, ciphertext, nil)
 }
 
-// EncryptChaCha20Poly1305 encrypts data using ChaCha20-Poly1305
-func (s *SymmetricEncryption) EncryptChaCha20Poly1305(plaintext []byte) ([]byte, error) {
-	key, err := s.deriveKey()
+// ChaCha20-Poly1305 加密
+func (s *SymmetricEncryption) encryptChaCha20Poly1305(plaintext []byte) ([]byte, error) {
+	if len(s.Key) != 32 {
+		return nil, errors.New("ChaCha20-Poly1305 requires 32-byte key")
+	}
+
+	aead, err := chacha20poly1305.New(s.Key)
 	if err != nil {
 		return nil, err
 	}
 
-	aead, err := chacha20poly1305.New(key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ChaCha20-Poly1305: %w", err)
-	}
-
-	// Generate a random nonce
 	nonce := make([]byte, aead.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, fmt.Errorf("failed to generate nonce: %w", err)
+		return nil, err
 	}
 
-	// Encrypt the data
 	ciphertext := aead.Seal(nonce, nonce, plaintext, nil)
 	return ciphertext, nil
 }
 
-// DecryptChaCha20Poly1305 decrypts data using ChaCha20-Poly1305
-func (s *SymmetricEncryption) DecryptChaCha20Poly1305(ciphertext []byte) ([]byte, error) {
-	key, err := s.deriveKey()
+// ChaCha20-Poly1305 解密
+func (s *SymmetricEncryption) decryptChaCha20Poly1305(ciphertext []byte) ([]byte, error) {
+	if len(s.Key) != 32 {
+		return nil, errors.New("ChaCha20-Poly1305 requires 32-byte key")
+	}
+
+	aead, err := chacha20poly1305.New(s.Key)
 	if err != nil {
 		return nil, err
 	}
 
-	aead, err := chacha20poly1305.New(key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ChaCha20-Poly1305: %w", err)
-	}
-
-	if len(ciphertext) < aead.NonceSize() {
+	nonceSize := aead.NonceSize()
+	if len(ciphertext) < nonceSize {
 		return nil, errors.New("ciphertext too short")
 	}
 
-	// Extract nonce and ciphertext
-	nonce := ciphertext[:aead.NonceSize()]
-	ciphertext = ciphertext[aead.NonceSize():]
-
-	// Decrypt the data
-	plaintext, err := aead.Open(nil, nonce, ciphertext, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt: %w", err)
-	}
-
-	return plaintext, nil
+	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+	return aead.Open(nil, nonce, ciphertext, nil)
 }
 
-// Encrypt encrypts data using the configured symmetric algorithm
-func (s *SymmetricEncryption) Encrypt(plaintext []byte) ([]byte, error) {
-	algorithm := s.config.Encryption.Symmetric.Algorithm
-	if algorithm == "" {
-		algorithm = "AES256-GCM" // Default
-	}
-
-	switch algorithm {
-	case "AES256-GCM":
-		return s.EncryptAES256GCM(plaintext)
-	case "ChaCha20-Poly1305":
-		return s.EncryptChaCha20Poly1305(plaintext)
-	default:
-		return nil, fmt.Errorf("unsupported symmetric algorithm: %s", algorithm)
-	}
-}
-
-// Decrypt decrypts data using the configured symmetric algorithm
-func (s *SymmetricEncryption) Decrypt(ciphertext []byte) ([]byte, error) {
-	algorithm := s.config.Encryption.Symmetric.Algorithm
-	if algorithm == "" {
-		algorithm = "AES256-GCM" // Default
-	}
-
-	switch algorithm {
-	case "AES256-GCM":
-		return s.DecryptAES256GCM(ciphertext)
-	case "ChaCha20-Poly1305":
-		return s.DecryptChaCha20Poly1305(ciphertext)
-	default:
-		return nil, fmt.Errorf("unsupported symmetric algorithm: %s", algorithm)
-	}
-}
-
-// GetEncryptionManager returns the encryption manager for the app
-func (app *App) GetEncryptionManager() *EncryptionManager {
-	return NewEncryptionManager(app)
-}
-
-// AsymmetricEncryption handles asymmetric encryption operations
+// AsymmetricEncryption 非对称加密
 type AsymmetricEncryption struct {
-	config *ModConfig
+	Algorithm  string
+	PublicKey  *rsa.PublicKey
+	PrivateKey *rsa.PrivateKey
 }
 
-// NewAsymmetricEncryption creates a new asymmetric encryption instance
-func NewAsymmetricEncryption(config *ModConfig) *AsymmetricEncryption {
-	return &AsymmetricEncryption{config: config}
-}
+// NewAsymmetricEncryption 创建非对称加密实例
+func NewAsymmetricEncryption(config *ModConfig) (*AsymmetricEncryption, error) {
+	if config == nil {
+		return nil, errors.New("config is nil")
+	}
 
-// getPublicKey returns the public key from configuration
-func (a *AsymmetricEncryption) getPublicKey() (interface{}, error) {
-	var keyData []byte
+	asymConfig := config.Encryption.Asymmetric
+
+	var publicKey *rsa.PublicKey
+	var privateKey *rsa.PrivateKey
 	var err error
 
-	if a.config.Encryption.Asymmetric.PublicKey != "" {
-		// Use key from config
-		keyData = []byte(a.config.Encryption.Asymmetric.PublicKey)
-	} else if a.config.Encryption.Asymmetric.PublicKeyFile != "" {
-		// Read key from file
-		keyData, err = ioutil.ReadFile(a.config.Encryption.Asymmetric.PublicKeyFile)
+	// 读取公钥
+	if asymConfig.PublicKeyFile != "" {
+		publicKey, err = loadPublicKeyFromFile(asymConfig.PublicKeyFile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read public key file: %w", err)
+			return nil, fmt.Errorf("failed to load public key from file: %w", err)
 		}
-	} else {
-		return nil, errors.New("no public key configured")
+	} else if asymConfig.PublicKey != "" {
+		publicKey, err = parsePublicKeyFromPEM(asymConfig.PublicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key: %w", err)
+		}
 	}
 
-	// Parse PEM block
-	block, _ := pem.Decode(keyData)
-	if block == nil {
-		return nil, errors.New("failed to parse PEM block containing public key")
+	// 读取私钥
+	if asymConfig.PrivateKeyFile != "" {
+		privateKey, err = loadPrivateKeyFromFile(asymConfig.PrivateKeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load private key from file: %w", err)
+		}
+	} else if asymConfig.PrivateKey != "" {
+		privateKey, err = parsePrivateKeyFromPEM(asymConfig.PrivateKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse private key: %w", err)
+		}
 	}
 
-	// Parse public key based on algorithm
-	algorithm := a.config.Encryption.Asymmetric.Algorithm
-	switch algorithm {
-	case "RSA-OAEP", "":
-		pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse RSA public key: %w", err)
-		}
-		rsaPubKey, ok := pubKey.(*rsa.PublicKey)
-		if !ok {
-			return nil, errors.New("not an RSA public key")
-		}
-		return rsaPubKey, nil
-	case "ECDH":
-		pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse ECDH public key: %w", err)
-		}
-		return pubKey, nil
+	return &AsymmetricEncryption{
+		Algorithm:  asymConfig.Algorithm,
+		PublicKey:  publicKey,
+		PrivateKey: privateKey,
+	}, nil
+}
+
+// Encrypt 非对称加密（使用公钥）
+func (a *AsymmetricEncryption) Encrypt(plaintext []byte) ([]byte, error) {
+	if a.PublicKey == nil {
+		return nil, errors.New("public key not available")
+	}
+
+	switch a.Algorithm {
+	case "RSA-OAEP":
+		return rsa.EncryptOAEP(sha256.New(), rand.Reader, a.PublicKey, plaintext, nil)
 	default:
-		return nil, fmt.Errorf("unsupported asymmetric algorithm: %s", algorithm)
+		return nil, fmt.Errorf("unsupported algorithm: %s", a.Algorithm)
 	}
 }
 
-// getPrivateKey returns the private key from configuration
-func (a *AsymmetricEncryption) getPrivateKey() (interface{}, error) {
-	var keyData []byte
-	var err error
-
-	if a.config.Encryption.Asymmetric.PrivateKey != "" {
-		// Use key from config
-		keyData = []byte(a.config.Encryption.Asymmetric.PrivateKey)
-	} else if a.config.Encryption.Asymmetric.PrivateKeyFile != "" {
-		// Read key from file
-		keyData, err = ioutil.ReadFile(a.config.Encryption.Asymmetric.PrivateKeyFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read private key file: %w", err)
-		}
-	} else {
-		return nil, errors.New("no private key configured")
+// Decrypt 非对称解密（使用私钥）
+func (a *AsymmetricEncryption) Decrypt(ciphertext []byte) ([]byte, error) {
+	if a.PrivateKey == nil {
+		return nil, errors.New("private key not available")
 	}
 
-	// Parse PEM block
-	block, _ := pem.Decode(keyData)
+	switch a.Algorithm {
+	case "RSA-OAEP":
+		return rsa.DecryptOAEP(sha256.New(), rand.Reader, a.PrivateKey, ciphertext, nil)
+	default:
+		return nil, fmt.Errorf("unsupported algorithm: %s", a.Algorithm)
+	}
+}
+
+// 辅助函数：从文件加载公钥
+func loadPublicKeyFromFile(filename string) (*rsa.PublicKey, error) {
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return parsePublicKeyFromPEM(string(data))
+}
+
+// 辅助函数：从PEM格式解析公钥
+func parsePublicKeyFromPEM(pemData string) (*rsa.PublicKey, error) {
+	block, _ := pem.Decode([]byte(pemData))
 	if block == nil {
-		return nil, errors.New("failed to parse PEM block containing private key")
+		return nil, errors.New("failed to decode PEM block")
 	}
 
-	// Parse private key based on algorithm
-	algorithm := a.config.Encryption.Asymmetric.Algorithm
-	switch algorithm {
-	case "RSA-OAEP", "":
-		privKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-		if err != nil {
-			// Try PKCS1 format
-			privKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse RSA private key: %w", err)
-			}
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	rsaPub, ok := pub.(*rsa.PublicKey)
+	if !ok {
+		return nil, errors.New("not an RSA public key")
+	}
+
+	return rsaPub, nil
+}
+
+// 辅助函数：从文件加载私钥
+func loadPrivateKeyFromFile(filename string) (*rsa.PrivateKey, error) {
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return parsePrivateKeyFromPEM(string(data))
+}
+
+// 辅助函数：从PEM格式解析私钥
+func parsePrivateKeyFromPEM(pemData string) (*rsa.PrivateKey, error) {
+	block, _ := pem.Decode([]byte(pemData))
+	if block == nil {
+		return nil, errors.New("failed to decode PEM block")
+	}
+
+	priv, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		// 尝试PKCS8格式
+		privKey, err2 := x509.ParsePKCS8PrivateKey(block.Bytes)
+		if err2 != nil {
+			return nil, fmt.Errorf("failed to parse private key: %w", err)
 		}
-		rsaPrivKey, ok := privKey.(*rsa.PrivateKey)
+
+		rsaPriv, ok := privKey.(*rsa.PrivateKey)
 		if !ok {
 			return nil, errors.New("not an RSA private key")
 		}
-		return rsaPrivKey, nil
-	case "ECDH":
-		privKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse ECDH private key: %w", err)
-		}
-		return privKey, nil
-	default:
-		return nil, fmt.Errorf("unsupported asymmetric algorithm: %s", algorithm)
+		return rsaPriv, nil
 	}
+
+	return priv, nil
 }
 
-// EncryptRSAOAEP encrypts data using RSA-OAEP
-func (a *AsymmetricEncryption) EncryptRSAOAEP(plaintext []byte) ([]byte, error) {
-	pubKeyInterface, err := a.getPublicKey()
-	if err != nil {
-		return nil, err
-	}
-
-	pubKey, ok := pubKeyInterface.(*rsa.PublicKey)
-	if !ok {
-		return nil, errors.New("invalid RSA public key")
-	}
-
-	// RSA-OAEP has size limitations, so we encrypt the data in chunks
-	keySize := pubKey.Size()
-	maxPlaintextSize := keySize - 2*sha256.Size - 2 // OAEP padding overhead
-
-	if len(plaintext) <= maxPlaintextSize {
-		// Single block encryption
-		return rsa.EncryptOAEP(sha256.New(), rand.Reader, pubKey, plaintext, nil)
-	}
-
-	// Multi-block encryption for larger data
-	var result []byte
-	for i := 0; i < len(plaintext); i += maxPlaintextSize {
-		end := i + maxPlaintextSize
-		if end > len(plaintext) {
-			end = len(plaintext)
-		}
-
-		chunk := plaintext[i:end]
-		encryptedChunk, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, pubKey, chunk, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt chunk: %w", err)
-		}
-
-		result = append(result, encryptedChunk...)
-	}
-
-	return result, nil
-}
-
-// DecryptRSAOAEP decrypts data using RSA-OAEP
-func (a *AsymmetricEncryption) DecryptRSAOAEP(ciphertext []byte) ([]byte, error) {
-	privKeyInterface, err := a.getPrivateKey()
-	if err != nil {
-		return nil, err
-	}
-
-	privKey, ok := privKeyInterface.(*rsa.PrivateKey)
-	if !ok {
-		return nil, errors.New("invalid RSA private key")
-	}
-
-	keySize := privKey.Size()
-
-	if len(ciphertext) == keySize {
-		// Single block decryption
-		return rsa.DecryptOAEP(sha256.New(), rand.Reader, privKey, ciphertext, nil)
-	}
-
-	// Multi-block decryption
-	if len(ciphertext)%keySize != 0 {
-		return nil, errors.New("invalid ciphertext length for RSA decryption")
-	}
-
-	var result []byte
-	for i := 0; i < len(ciphertext); i += keySize {
-		chunk := ciphertext[i : i+keySize]
-		decryptedChunk, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, privKey, chunk, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decrypt chunk: %w", err)
-		}
-
-		result = append(result, decryptedChunk...)
-	}
-
-	return result, nil
-}
-
-// EncryptECDH encrypts data using ECDH (generates shared secret + AES)
-func (a *AsymmetricEncryption) EncryptECDH(plaintext []byte) ([]byte, error) {
-	// For ECDH, we generate an ephemeral key pair, perform ECDH key exchange,
-	// and use the shared secret to encrypt with AES-GCM
-	pubKeyInterface, err := a.getPublicKey()
-	if err != nil {
-		return nil, err
-	}
-
-	// Generate ephemeral key pair
-	curve := ecdh.P256() // Use P-256 curve
-	ephemeralPrivKey, err := curve.GenerateKey(rand.Reader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate ephemeral key: %w", err)
-	}
-
-	ephemeralPubKey := ephemeralPrivKey.PublicKey()
-
-	// Convert recipient's public key to ECDH format
-	recipientPubKey, ok := pubKeyInterface.(*ecdh.PublicKey)
-	if !ok {
-		return nil, errors.New("invalid ECDH public key")
-	}
-
-	// Perform ECDH key exchange
-	sharedSecret, err := ephemeralPrivKey.ECDH(recipientPubKey)
-	if err != nil {
-		return nil, fmt.Errorf("ECDH key exchange failed: %w", err)
-	}
-
-	// Derive encryption key from shared secret
-	hash := sha256.Sum256(sharedSecret)
-	encryptionKey := hash[:]
-
-	// Encrypt using AES-GCM
-	block, err := aes.NewCipher(encryptionKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create GCM: %w", err)
-	}
-
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, fmt.Errorf("failed to generate nonce: %w", err)
-	}
-
-	ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
-
-	// Prepend ephemeral public key to ciphertext
-	ephemeralPubKeyBytes := ephemeralPubKey.Bytes()
-	result := make([]byte, len(ephemeralPubKeyBytes)+len(ciphertext))
-	copy(result, ephemeralPubKeyBytes)
-	copy(result[len(ephemeralPubKeyBytes):], ciphertext)
-
-	return result, nil
-}
-
-// DecryptECDH decrypts data using ECDH
-func (a *AsymmetricEncryption) DecryptECDH(data []byte) ([]byte, error) {
-	privKeyInterface, err := a.getPrivateKey()
-	if err != nil {
-		return nil, err
-	}
-
-	privKey, ok := privKeyInterface.(*ecdh.PrivateKey)
-	if !ok {
-		return nil, errors.New("invalid ECDH private key")
-	}
-
-	// Extract ephemeral public key
-	curve := ecdh.P256()
-	pubKeySize := curve.PublicKeySize()
-
-	if len(data) < pubKeySize {
-		return nil, errors.New("data too short to contain ephemeral public key")
-	}
-
-	ephemeralPubKeyBytes := data[:pubKeySize]
-	ciphertext := data[pubKeySize:]
-
-	ephemeralPubKey, err := curve.NewPublicKey(ephemeralPubKeyBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse ephemeral public key: %w", err)
-	}
-
-	// Perform ECDH key exchange
-	sharedSecret, err := privKey.ECDH(ephemeralPubKey)
-	if err != nil {
-		return nil, fmt.Errorf("ECDH key exchange failed: %w", err)
-	}
-
-	// Derive decryption key from shared secret
-	hash := sha256.Sum256(sharedSecret)
-	decryptionKey := hash[:]
-
-	// Decrypt using AES-GCM
-	block, err := aes.NewCipher(decryptionKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create GCM: %w", err)
-	}
-
-	if len(ciphertext) < gcm.NonceSize() {
-		return nil, errors.New("ciphertext too short")
-	}
-
-	nonce := ciphertext[:gcm.NonceSize()]
-	ciphertext = ciphertext[gcm.NonceSize():]
-
-	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt: %w", err)
-	}
-
-	return plaintext, nil
-}
-
-// Encrypt encrypts data using the configured asymmetric algorithm
-func (a *AsymmetricEncryption) Encrypt(plaintext []byte) ([]byte, error) {
-	algorithm := a.config.Encryption.Asymmetric.Algorithm
-	if algorithm == "" {
-		algorithm = "RSA-OAEP" // Default
-	}
-
-	switch algorithm {
-	case "RSA-OAEP":
-		return a.EncryptRSAOAEP(plaintext)
-	case "ECDH":
-		return a.EncryptECDH(plaintext)
-	default:
-		return nil, fmt.Errorf("unsupported asymmetric algorithm: %s", algorithm)
-	}
-}
-
-// Decrypt decrypts data using the configured asymmetric algorithm
-func (a *AsymmetricEncryption) Decrypt(ciphertext []byte) ([]byte, error) {
-	algorithm := a.config.Encryption.Asymmetric.Algorithm
-	if algorithm == "" {
-		algorithm = "RSA-OAEP" // Default
-	}
-
-	switch algorithm {
-	case "RSA-OAEP":
-		return a.DecryptRSAOAEP(ciphertext)
-	case "ECDH":
-		return a.DecryptECDH(ciphertext)
-	default:
-		return nil, fmt.Errorf("unsupported asymmetric algorithm: %s", algorithm)
-	}
-}
-
-// SignatureVerification handles digital signature operations
+// SignatureVerification 签名验证
 type SignatureVerification struct {
-	config *ModConfig
+	Algorithm string
+	Key       []byte
 }
 
-// NewSignatureVerification creates a new signature verification instance
+// NewSignatureVerification 创建签名验证实例
 func NewSignatureVerification(config *ModConfig) *SignatureVerification {
-	return &SignatureVerification{config: config}
-}
-
-// getSigningKey returns the signing key from configuration
-func (s *SignatureVerification) getSigningKey() ([]byte, error) {
-	if s.config.Encryption.Signature.Key != "" {
-		// Decode base64 key
-		return base64.StdEncoding.DecodeString(s.config.Encryption.Signature.Key)
+	if config == nil {
+		return nil
 	}
 
-	if s.config.Encryption.Signature.KeyFile != "" {
-		// Read key from file
-		keyData, err := ioutil.ReadFile(s.config.Encryption.Signature.KeyFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read signature key file: %w", err)
+	sigConfig := config.Encryption.Signature
+
+	var key []byte
+
+	if sigConfig.KeyFile != "" {
+		keyData, err := ioutil.ReadFile(sigConfig.KeyFile)
+		if err == nil {
+			key = keyData
 		}
-
-		// Try to decode as base64, if fails use raw data
-		if decoded, err := base64.StdEncoding.DecodeString(string(keyData)); err == nil {
-			return decoded, nil
+	} else if sigConfig.Key != "" {
+		keyData, err := base64.StdEncoding.DecodeString(sigConfig.Key)
+		if err == nil {
+			key = keyData
+		} else {
+			// 如果不是base64，直接使用原始字符串
+			key = []byte(sigConfig.Key)
 		}
-		return keyData, nil
 	}
 
-	return nil, errors.New("no signature key configured")
+	return &SignatureVerification{
+		Algorithm: sigConfig.Algorithm,
+		Key:       key,
+	}
 }
 
-// SignHMACSHA256 creates an HMAC-SHA256 signature
-func (s *SignatureVerification) SignHMACSHA256(data []byte) ([]byte, error) {
-	key, err := s.getSigningKey()
-	if err != nil {
-		return nil, err
-	}
-
-	h := hmac.New(sha256.New, key)
-	h.Write(data)
-	return h.Sum(nil), nil
-}
-
-// VerifyHMACSHA256 verifies an HMAC-SHA256 signature
-func (s *SignatureVerification) VerifyHMACSHA256(data, signature []byte) error {
-	expectedSignature, err := s.SignHMACSHA256(data)
-	if err != nil {
-		return err
-	}
-
-	if !hmac.Equal(signature, expectedSignature) {
-		return errors.New("HMAC signature verification failed")
-	}
-
-	return nil
-}
-
-// Sign creates a digital signature for the given data
+// Sign 生成签名
 func (s *SignatureVerification) Sign(data []byte) ([]byte, error) {
-	algorithm := s.config.Encryption.Signature.Algorithm
-	if algorithm == "" {
-		algorithm = "HMAC-SHA256" // Default
-	}
-
-	switch algorithm {
+	switch s.Algorithm {
 	case "HMAC-SHA256":
-		return s.SignHMACSHA256(data)
+		return s.signHMAC(data), nil
 	default:
-		return nil, fmt.Errorf("unsupported signature algorithm: %s", algorithm)
+		return nil, fmt.Errorf("unsupported signature algorithm: %s", s.Algorithm)
 	}
 }
 
-// Verify verifies a digital signature for the given data
-func (s *SignatureVerification) Verify(data, signature []byte) error {
-	algorithm := s.config.Encryption.Signature.Algorithm
-	if algorithm == "" {
-		algorithm = "HMAC-SHA256" // Default
+// Verify 验证签名
+func (s *SignatureVerification) Verify(data []byte, signature []byte) error {
+	switch s.Algorithm {
+	case "HMAC-SHA256":
+		expectedSig := s.signHMAC(data)
+		if !hmac.Equal(signature, expectedSig) {
+			return errors.New("signature verification failed")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported signature algorithm: %s", s.Algorithm)
+	}
+}
+
+// HMAC-SHA256 签名
+func (s *SignatureVerification) signHMAC(data []byte) []byte {
+	h := hmac.New(sha256.New, s.Key)
+	h.Write(data)
+	return h.Sum(nil)
+}
+
+// CheckEncryption 检查是否需要加密
+func CheckEncryption(config *ModConfig, serviceName, groupName string) bool {
+	if config == nil || !config.Encryption.Global.Enabled {
+		return false
 	}
 
-	switch algorithm {
-	case "HMAC-SHA256":
-		return s.VerifyHMACSHA256(data, signature)
-	default:
-		return fmt.Errorf("unsupported signature algorithm: %s", algorithm)
+	// 检查白名单
+	for _, whiteService := range config.Encryption.Whitelist.Services {
+		if whiteService == serviceName {
+			return false
+		}
 	}
+
+	for _, whiteGroup := range config.Encryption.Whitelist.Groups {
+		if whiteGroup == groupName {
+			return false
+		}
+	}
+
+	// 检查服务级别配置
+	if serviceConfig, exists := config.Encryption.Services[serviceName]; exists {
+		return serviceConfig.Enabled
+	}
+
+	// 检查分组级别配置
+	if groupConfig, exists := config.Encryption.Groups[groupName]; exists {
+		return groupConfig.Enabled
+	}
+
+	// 返回全局配置
+	return config.Encryption.Global.Enabled
 }
