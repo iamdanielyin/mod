@@ -111,10 +111,10 @@ func main() {
 	fmt.Println("- 消息服务组: 不启用Mock（使用实际Handler）")
 	fmt.Println()
 	fmt.Println("API端点:")
-	fmt.Println("- POST /services/user-info     - 获取用户信息（Mock）")
-	fmt.Println("- POST /services/user-list     - 获取用户列表（Mock）")
-	fmt.Println("- POST /services/order-info    - 获取订单信息（Mock）")
-	fmt.Println("- POST /services/send-message  - 发送消息（实际）")
+	fmt.Println("- POST /services/user_info     - 获取用户信息（Mock）")
+	fmt.Println("- POST /services/user_list     - 获取用户列表（Mock）")
+	fmt.Println("- POST /services/order_info    - 获取订单信息（Mock）")
+	fmt.Println("- POST /services/send_message  - 发送消息（实际）")
 
 	// 启动服务器
 	app.Run()
@@ -124,7 +124,7 @@ func main() {
 func registerUserServices(app *mod.App) {
 	// 获取用户信息服务
 	app.Register(mod.Service{
-		Name:        "user-info",
+		Name:        "user_info",
 		DisplayName: "获取用户信息",
 		Description: "根据用户ID获取用户详细信息",
 		Group:       "用户管理",
@@ -150,7 +150,7 @@ func registerUserServices(app *mod.App) {
 
 	// 获取用户列表服务
 	app.Register(mod.Service{
-		Name:        "user-list",
+		Name:        "user_list",
 		DisplayName: "获取用户列表",
 		Description: "分页获取用户列表",
 		Group:       "用户管理",
@@ -186,7 +186,7 @@ func registerUserServices(app *mod.App) {
 func registerOrderServices(app *mod.App) {
 	// 获取订单信息服务（单独启用Mock）
 	app.Register(mod.Service{
-		Name:        "order-info",
+		Name:        "order_info",
 		DisplayName: "获取订单信息",
 		Description: "根据订单ID获取订单详细信息",
 		Group:       "订单管理",
@@ -226,7 +226,7 @@ func registerOrderServices(app *mod.App) {
 func registerMessageServices(app *mod.App) {
 	// 发送消息服务（不启用Mock）
 	app.Register(mod.Service{
-		Name:        "send-message",
+		Name:        "send_message",
 		DisplayName: "发送消息",
 		Description: "向指定用户发送消息",
 		Group:       "消息服务",

@@ -98,7 +98,7 @@ func main() {
 
 	// Register create user service (with encryption - contains sensitive data)
 	app.Register(mod.Service{
-		Name:        "create-user",
+		Name:        "create_user",
 		DisplayName: "创建用户",
 		Description: "创建新用户，包含敏感信息（薪资、密码），需要加密传输",
 		Handler:     mod.MakeHandler(handleCreateUser),
@@ -108,7 +108,7 @@ func main() {
 
 	// Register get user service (with encryption - contains sensitive data)
 	app.Register(mod.Service{
-		Name:        "get-user",
+		Name:        "get_user",
 		DisplayName: "获取用户详细信息",
 		Description: "获取用户的完整信息，包含敏感数据（薪资、密码），需要加密传输",
 		Handler:     mod.MakeHandler(handleGetUser),
@@ -118,7 +118,7 @@ func main() {
 
 	// Register get public user service (without encryption - no sensitive data)
 	app.Register(mod.Service{
-		Name:        "get-public-user",
+		Name:        "get_public_user",
 		DisplayName: "获取公开用户信息",
 		Description: "获取用户的公开信息，不包含敏感数据，无需加密传输",
 		Handler:     mod.MakeHandler(handleGetPublicUser),
@@ -128,9 +128,9 @@ func main() {
 
 	log.Println("Encryption Example Server Starting...")
 	log.Println("Available endpoints:")
-	log.Println("  POST /services/create-user     - Create user (encrypted)")
-	log.Println("  POST /services/get-user        - Get user details (encrypted)")
-	log.Println("  POST /services/get-public-user - Get public user info (not encrypted)")
+	log.Println("  POST /services/create_user     - Create user (encrypted)")
+	log.Println("  POST /services/get_user        - Get user details (encrypted)")
+	log.Println("  POST /services/get_public_user - Get public user info (not encrypted)")
 	log.Println("  GET  /services/docs            - API documentation")
 	log.Println()
 	log.Println("Encryption Configuration:")

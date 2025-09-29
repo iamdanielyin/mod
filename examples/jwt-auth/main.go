@@ -112,7 +112,7 @@ func main() {
 
 	// Register user info service (requires JWT authentication)
 	app.Register(mod.Service{
-		Name:        "userinfo",
+		Name:        "user_info",
 		DisplayName: "获取用户信息",
 		Description: "获取当前登录用户的信息",
 		SkipAuth:    true, // Skip traditional auth, use JWT context check
@@ -123,7 +123,7 @@ func main() {
 
 	// Register protected data service (requires JWT authentication)
 	app.Register(mod.Service{
-		Name:        "protected-data",
+		Name:        "protected_data",
 		DisplayName: "受保护的数据",
 		Description: "需要JWT认证才能访问的数据",
 		SkipAuth:    true, // Skip traditional auth, use JWT context check
@@ -151,14 +151,14 @@ func main() {
 	log.Println("  POST /services/login     - Login to get JWT token")
 	log.Println("  POST /services/logout    - Logout (requires JWT)")
 	log.Println("  POST /services/refresh   - Refresh JWT token")
-	log.Println("  POST /services/userinfo  - Get user info (requires JWT)")
-	log.Println("  POST /services/protected-data - Get protected data (requires JWT)")
+	log.Println("  POST /services/user_info  - Get user info (requires JWT)")
+	log.Println("  POST /services/protected_data - Get protected data (requires JWT)")
 	log.Println("  POST /admin/data         - Admin-only data (requires JWT + admin role)")
 	log.Println("  GET  /services/docs      - API documentation")
 	log.Println()
 	log.Println("Example usage:")
 	log.Println("  curl -X POST http://localhost:8080/services/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"admin123\"}'")
-	log.Println("  curl -X POST http://localhost:8080/services/userinfo -H 'Authorization: Bearer <token>'")
+	log.Println("  curl -X POST http://localhost:8080/services/user_info -H 'Authorization: Bearer <token>'")
 
 	app.Run(":8080")
 }

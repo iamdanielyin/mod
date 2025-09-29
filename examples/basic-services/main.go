@@ -45,7 +45,7 @@ func main() {
 
 	// Register get user service
 	app.Register(mod.Service{
-		Name:        "get-user",
+		Name:        "get_user",
 		DisplayName: "获取用户信息",
 		Description: "根据用户ID获取用户详细信息",
 		Handler:     mod.MakeHandler(handleGetUser),
@@ -55,7 +55,7 @@ func main() {
 
 	// Register create user service
 	app.Register(mod.Service{
-		Name:        "create-user",
+		Name:        "create_user",
 		DisplayName: "创建用户",
 		Description: "创建新用户账户",
 		Handler:     mod.MakeHandler(handleCreateUser),

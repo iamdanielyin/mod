@@ -18,7 +18,7 @@ func main() {
 
 	// Register file info service
 	app.Register(mod.Service{
-		Name:        "upload-info",
+		Name:        "upload_info",
 		DisplayName: "上传配置信息",
 		Description: "获取文件上传配置信息",
 		Handler:     mod.MakeHandler(handleUploadInfo),
@@ -32,14 +32,14 @@ func main() {
 
 // UploadInfoResponse represents upload configuration info
 type UploadInfoResponse struct {
-	LocalEnabled  bool     `json:"local_enabled"`
-	S3Enabled     bool     `json:"s3_enabled"`
-	OSSEnabled    bool     `json:"oss_enabled"`
-	MaxSize       string   `json:"max_size"`
-	AllowedTypes  []string `json:"allowed_types"`
-	AllowedExts   []string `json:"allowed_exts"`
-	UploadURL     string   `json:"upload_url"`
-	BatchURL      string   `json:"batch_url"`
+	LocalEnabled bool     `json:"local_enabled"`
+	S3Enabled    bool     `json:"s3_enabled"`
+	OSSEnabled   bool     `json:"oss_enabled"`
+	MaxSize      string   `json:"max_size"`
+	AllowedTypes []string `json:"allowed_types"`
+	AllowedExts  []string `json:"allowed_exts"`
+	UploadURL    string   `json:"upload_url"`
+	BatchURL     string   `json:"batch_url"`
 }
 
 // Handle upload info

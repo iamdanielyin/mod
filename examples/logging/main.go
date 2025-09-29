@@ -25,7 +25,7 @@ func main() {
 
 	// Register log test service
 	app.Register(mod.Service{
-		Name:        "log-test",
+		Name:        "log_test",
 		DisplayName: "日志测试",
 		Description: "测试不同级别的日志输出",
 		Handler:     mod.MakeHandler(handleLogTest),
@@ -36,7 +36,7 @@ func main() {
 
 	// Register log info service
 	app.Register(mod.Service{
-		Name:        "log-info",
+		Name:        "log_info",
 		DisplayName: "日志配置信息",
 		Description: "获取当前日志配置信息",
 		Handler:     mod.MakeHandler(handleLogInfo),

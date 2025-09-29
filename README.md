@@ -62,7 +62,7 @@ func main() {
 
     // 注册服务
     app.Register(mod.Service{
-        Name:        "get-user",
+        Name:        "get_user",
         DisplayName: "获取用户信息",
         Description: "根据用户ID获取用户详细信息",
         Handler:     mod.MakeHandler(handleGetUser),
@@ -145,18 +145,18 @@ encryption:
 ## 🏗 架构特点
 
 ### 服务化设计
-MOD框架采用服务化架构，每个业务功能都注册为独立的服务：
+MOD采用服务化架构，每个业务功能都注册为独立的服务。**推荐使用蛇形命名法（snake_case）来命名服务**：
 
 ```go
 app.Register(mod.Service{
-    Name:        "service-name",        // 服务名称
-    DisplayName: "服务显示名",            // 显示名称
-    Description: "服务描述",              // 服务描述
-    Handler:     mod.MakeHandler(fn),   // 处理函数
-    Group:       "服务分组",              // 服务分组
-    Sort:        1,                     // 排序
-    SkipAuth:    false,                 // 是否跳过认证
-    ReturnRaw:   false,                 // 是否返回原始数据
+    Name:        "get_user",              // 服务名称（推荐蛇形命名）
+    DisplayName: "获取用户信息",            // 显示名称
+    Description: "根据用户ID获取详细信息",   // 服务描述
+    Handler:     mod.MakeHandler(fn),     // 处理函数
+    Group:       "用户管理",               // 服务分组
+    Sort:        1,                       // 排序
+    SkipAuth:    false,                   // 是否跳过认证
+    ReturnRaw:   false,                   // 是否返回原始数据
 })
 ```
 

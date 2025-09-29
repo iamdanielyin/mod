@@ -22,7 +22,7 @@ func main() {
 
 	// Register static info service
 	app.Register(mod.Service{
-		Name:        "static-info",
+		Name:        "static_info",
 		DisplayName: "静态文件配置",
 		Description: "获取静态文件挂载配置信息",
 		Handler:     mod.MakeHandler(handleStaticInfo),
