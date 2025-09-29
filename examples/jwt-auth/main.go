@@ -64,6 +64,20 @@ var users = map[string]User{
 		Role:     "user",
 		Password: "user123", // In real app, this should be hashed
 	},
+	"manager": {
+		ID:       "3",
+		Username: "manager",
+		Email:    "manager@example.com",
+		Role:     "manager",
+		Password: "manager123", // In real app, this should be hashed
+	},
+	"vip": {
+		ID:       "4",
+		Username: "vip",
+		Email:    "vip@example.com",
+		Role:     "user",
+		Password: "vip123", // In real app, this should be hashed
+	},
 }
 
 // Global app instance for access in handlers
@@ -132,33 +146,79 @@ func main() {
 		Sort:        1,
 	})
 
-	// Add a route with role-based access control using middleware
-	app.Post("/admin/data", mod.JWTMiddleware(app), mod.RoleMiddleware("admin"), func(c *fiber.Ctx) error {
-		ctx := &mod.Context{Ctx: c}
-		response := AdminDataResponse{
-			AdminData: "This is admin-only data",
-			Stats: map[string]int{
-				"total_users":   len(users),
-				"admin_actions": 42,
-				"system_uptime": 3600,
+	// Register admin-only service using new permission system
+	app.Register(mod.Service{
+		Name:        "admin_data",
+		DisplayName: "管理员专用数据",
+		Description: "只有管理员角色才能访问的数据",
+		SkipAuth:    true,
+		Handler:     mod.MakeHandler(handleAdminData),
+		Group:       "管理员功能",
+		Sort:        1,
+		Permission: &mod.PermissionConfig{
+			Rules: []mod.PermissionRule{
+				{Field: "user.role", Operator: "eq", Value: "admin"},
 			},
-		}
-		return c.JSON(mod.NewSuccessResponse(ctx, response))
+			Logic: "AND",
+		},
+	})
+
+	// Register VIP service using permission system
+	app.Register(mod.Service{
+		Name:        "vip_service",
+		DisplayName: "VIP服务",
+		Description: "需要VIP级别2或以上才能访问",
+		SkipAuth:    true,
+		Handler:     mod.MakeHandler(handleVipService),
+		Group:       "VIP功能",
+		Sort:        1,
+		Permission: &mod.PermissionConfig{
+			Rules: []mod.PermissionRule{
+				{Field: "user.vip_level", Operator: "gte", Value: 2},
+				{Field: "user.status", Operator: "eq", Value: "active"},
+			},
+			Logic: "AND",
+		},
+	})
+
+	// Register multi-role service
+	app.Register(mod.Service{
+		Name:        "manager_or_admin_data",
+		DisplayName: "管理层数据",
+		Description: "管理员或经理角色可访问",
+		SkipAuth:    true,
+		Handler:     mod.MakeHandler(handleManagerOrAdminData),
+		Group:       "管理功能",
+		Sort:        1,
+		Permission: &mod.PermissionConfig{
+			Rules: []mod.PermissionRule{
+				{Field: "user.role", Operator: "in", Value: []string{"admin", "manager"}},
+			},
+			Logic: "AND",
+		},
 	})
 
 	log.Println("JWT Example Server Starting...")
 	log.Println("Available endpoints:")
-	log.Println("  POST /services/login     - Login to get JWT token")
-	log.Println("  POST /services/logout    - Logout (requires JWT)")
-	log.Println("  POST /services/refresh   - Refresh JWT token")
-	log.Println("  POST /services/user_info  - Get user info (requires JWT)")
-	log.Println("  POST /services/protected_data - Get protected data (requires JWT)")
-	log.Println("  POST /admin/data         - Admin-only data (requires JWT + admin role)")
-	log.Println("  GET  /services/docs      - API documentation")
+	log.Println("  POST /services/login              - Login to get JWT token")
+	log.Println("  POST /services/logout             - Logout (requires JWT)")
+	log.Println("  POST /services/refresh            - Refresh JWT token")
+	log.Println("  POST /services/user_info          - Get user info (requires JWT)")
+	log.Println("  POST /services/protected_data     - Get protected data (requires JWT)")
+	log.Println("  POST /services/admin_data         - Admin-only data (requires admin role)")
+	log.Println("  POST /services/vip_service        - VIP service (requires VIP level 2+)")
+	log.Println("  POST /services/manager_or_admin_data - Management data (admin or manager role)")
+	log.Println("  GET  /services/docs               - API documentation")
+	log.Println()
+	log.Println("Test users:")
+	log.Println("  admin/admin123    - Admin role")
+	log.Println("  manager/manager123 - Manager role")
+	log.Println("  user/user123      - User role")
+	log.Println("  vip/vip123        - VIP user")
 	log.Println()
 	log.Println("Example usage:")
 	log.Println("  curl -X POST http://localhost:8080/services/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"admin123\"}'")
-	log.Println("  curl -X POST http://localhost:8080/services/user_info -H 'Authorization: Bearer <token>'")
+	log.Println("  curl -X POST http://localhost:8080/services/admin_data -H 'Authorization: Bearer <token>'")
 
 	app.Run(":8080")
 }
@@ -191,13 +251,32 @@ func handleLogin(ctx *mod.Context, req *LoginRequest, resp *LoginResponse) error
 		return mod.Reply(500, "Failed to generate tokens")
 	}
 
-	// Store token in cache for validation (optional - depends on your token validation strategy)
-	if err := modApp.SetToken(tokens.AccessToken, map[string]interface{}{
-		"user_id":   user.ID,
-		"username":  user.Username,
-		"role":      user.Role,
-		"issued_at": time.Now().Unix(),
-	}); err != nil {
+	// Store token in cache for validation with rich user data
+	tokenData := map[string]interface{}{
+		"user": map[string]interface{}{
+			"id":       user.ID,
+			"username": user.Username,
+			"email":    user.Email,
+			"role":     user.Role,
+			"status":   "active",
+		},
+		"session": map[string]interface{}{
+			"issued_at":  time.Now().Unix(),
+			"login_ip":   ctx.IP(),
+			"login_time": time.Now().Unix(),
+		},
+	}
+
+	// Add VIP level for VIP users (demo purpose)
+	if user.Username == "vip" {
+		tokenData["user"].(map[string]interface{})["vip_level"] = 3
+	} else if user.Role == "admin" {
+		tokenData["user"].(map[string]interface{})["vip_level"] = 5
+	} else {
+		tokenData["user"].(map[string]interface{})["vip_level"] = 1
+	}
+
+	if err := modApp.SetToken(tokens.AccessToken, tokenData); err != nil {
 		ctx.WithFields(map[string]interface{}{
 			"user_id": user.ID,
 			"error":   err.Error(),
@@ -337,5 +416,52 @@ func handleProtectedData(ctx *mod.Context, req *struct{}, resp *ProtectedDataRes
 		"role":    role,
 	}).Info("Protected data accessed")
 
+	return nil
+}
+
+// Handle admin data
+func handleAdminData(ctx *mod.Context, req *struct{}, resp *AdminDataResponse) error {
+	resp.AdminData = "This is admin-only data accessible through permission system"
+	resp.Stats = map[string]int{
+		"total_users":   len(users),
+		"admin_actions": 42,
+		"system_uptime": 3600,
+	}
+
+	ctx.Info("Admin data accessed via permission system")
+	return nil
+}
+
+// VIP service response
+type VipServiceResponse struct {
+	VipData   string `json:"vip_data"`
+	VipLevel  int    `json:"vip_level"`
+	Timestamp int64  `json:"timestamp"`
+}
+
+// Handle VIP service
+func handleVipService(ctx *mod.Context, req *struct{}, resp *VipServiceResponse) error {
+	resp.VipData = "This is VIP service content for level 2+ users"
+	resp.VipLevel = 2
+	resp.Timestamp = time.Now().Unix()
+
+	ctx.Info("VIP service accessed")
+	return nil
+}
+
+// Manager data response
+type ManagerDataResponse struct {
+	Data        string `json:"data"`
+	AccessLevel string `json:"access_level"`
+	Timestamp   int64  `json:"timestamp"`
+}
+
+// Handle manager or admin data
+func handleManagerOrAdminData(ctx *mod.Context, req *struct{}, resp *ManagerDataResponse) error {
+	resp.Data = "This is management-level data accessible to admin or manager roles"
+	resp.AccessLevel = "management"
+	resp.Timestamp = time.Now().Unix()
+
+	ctx.Info("Management data accessed")
 	return nil
 }

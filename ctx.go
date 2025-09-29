@@ -103,6 +103,24 @@ type Handler struct {
 	OutputType reflect.Type
 }
 
+// PermissionRule 权限规则
+type PermissionRule struct {
+	// Token缓存数据中的字段路径，如 "user.role", "permissions.admin", "department.level"
+	Field string `json:"field"`
+	// 操作符：eq, ne, in, not_in, gt, gte, lt, lte, contains, exists
+	Operator string `json:"operator"`
+	// 期望值
+	Value interface{} `json:"value"`
+}
+
+// PermissionConfig 权限配置
+type PermissionConfig struct {
+	// 权限规则列表，支持AND/OR逻辑
+	Rules []PermissionRule `json:"rules"`
+	// 规则之间的逻辑关系：AND（默认）或 OR
+	Logic string `json:"logic"` // "AND" | "OR"
+}
+
 type Service struct {
 	Name        string  `validate:"required"`
 	DisplayName string  `validate:"required"`
@@ -113,6 +131,9 @@ type Service struct {
 	ReturnRaw   bool
 	Group       string // 在文档中的分组
 	Sort        int    // 在文档中的排序值，从小到大排列
+
+	// 权限控制配置
+	Permission *PermissionConfig `json:"permission,omitempty"`
 }
 
 // MakeHandler 创建带类型信息的 Handler

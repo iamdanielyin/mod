@@ -125,21 +125,153 @@ app.Register(mod.Service{
 
 ### 中间件系统
 
-支持灵活的中间件配置：
+MOD提供了丰富的内置中间件，**所有全局中间件必须在注册服务之前调用**。
+
+#### 支持的中间件类型
+
+**全局中间件**（使用 `app.UseXXX()` 方法）：
+
+| 中间件方法 | 功能说明 | 配置要求 |
+|-----------|----------|----------|
+| `app.UseJWT()` | 强制JWT认证中间件，所有请求都必须提供有效JWT token | 需要配置 `jwt` 部分 |
+| `app.UseOptionalJWT()` | 可选JWT认证中间件，验证JWT但允许 `SkipAuth: true` 的服务 | 需要配置 `jwt` 部分 |
+| `app.UseEncryption()` | 服务加解密中间件，自动处理请求解密和响应加密 | 需要配置 `encryption` 部分 |
+
+#### 使用示例
 
 ```go
-// JWT认证中间件
-app.UseJWT()
+func main() {
+    app := mod.New()
 
-// 可选JWT中间件（允许跳过认证的服务）
-app.UseOptionalJWT()
+    // 1. 在注册服务之前配置全局中间件
+    // 推荐顺序：加解密 → JWT认证 → 其他中间件
+    app.UseEncryption()     // 请求解密和响应加密
+    app.UseOptionalJWT()    // 可选JWT认证
 
-// 角色权限中间件
-app.Use(mod.RoleMiddleware("admin"))
+    // 2. 然后注册服务
+    app.Register(mod.Service{
+        Name:        "get_user",
+        DisplayName: "获取用户信息",
+        Handler:     mod.MakeHandler(handleGetUser),
+        SkipAuth:    false, // false表示需要JWT认证
+    })
 
-// 加解密中间件
-app.UseEncryption()
+    app.Run(":8080")
+}
 ```
+
+#### 中间件执行顺序
+
+- **全局中间件**：按调用顺序执行，建议顺序为加解密 → JWT认证
+- **服务权限**：在服务处理前自动检查权限配置
+
+### 服务权限系统
+
+MOD提供了基于Token缓存数据的灵活权限控制系统，支持细粒度的权限管理。
+
+#### 权限配置
+
+在服务注册时通过 `Permission` 字段配置权限规则：
+
+```go
+app.Register(mod.Service{
+    Name:        "admin_data",
+    DisplayName: "管理员数据",
+    Handler:     mod.MakeHandler(handleAdminData),
+    Permission: &mod.PermissionConfig{
+        Rules: []mod.PermissionRule{
+            {Field: "user.role", Operator: "eq", Value: "admin"},
+        },
+        Logic: "AND",
+    },
+})
+```
+
+#### 权限规则
+
+**PermissionRule 结构**：
+- `Field`: Token缓存数据中的字段路径，支持嵌套访问如 `"user.role"`, `"permissions.admin"`
+- `Operator`: 操作符，支持 `eq`、`ne`、`in`、`not_in`、`gt`、`gte`、`lt`、`lte`、`contains`、`exists`
+- `Value`: 期望值
+
+**Logic 类型**：
+- `"AND"`: 所有规则都必须满足（默认）
+- `"OR"`: 任一规则满足即可
+
+#### 使用示例
+
+```go
+// 管理员专用服务
+app.Register(mod.Service{
+    Name: "admin_users",
+    Permission: &mod.PermissionConfig{
+        Rules: []mod.PermissionRule{
+            {Field: "user.role", Operator: "eq", Value: "admin"},
+        },
+    },
+})
+
+// VIP服务（需要VIP等级2以上）
+app.Register(mod.Service{
+    Name: "vip_service",
+    Permission: &mod.PermissionConfig{
+        Rules: []mod.PermissionRule{
+            {Field: "user.vip_level", Operator: "gte", Value: 2},
+            {Field: "user.status", Operator: "eq", Value: "active"},
+        },
+        Logic: "AND",
+    },
+})
+
+// 多角色服务
+app.Register(mod.Service{
+    Name: "manager_data",
+    Permission: &mod.PermissionConfig{
+        Rules: []mod.PermissionRule{
+            {Field: "user.role", Operator: "in", Value: []string{"admin", "manager"}},
+        },
+    },
+})
+```
+
+#### Token缓存数据结构
+
+登录时在Token缓存中存储权限相关数据：
+
+```go
+tokenData := map[string]interface{}{
+    "user": map[string]interface{}{
+        "id":        "123",
+        "role":      "admin",
+        "vip_level": 3,
+        "status":    "active",
+    },
+    "permissions": map[string]interface{}{
+        "user_management": true,
+        "financial_data":  false,
+    },
+    "department": map[string]interface{}{
+        "name":  "技术部",
+        "level": 4,
+    },
+}
+
+app.SetToken(accessToken, tokenData)
+```
+
+#### 权限检查流程
+
+1. 服务请求时自动检查是否配置了 `Permission`
+2. 如果配置了权限规则，从Token缓存获取用户数据
+3. 根据规则逐一验证字段值
+4. 按照 `Logic` 类型（AND/OR）综合判断
+5. 权限不足时返回403错误
+
+**优势**：
+- **灵活性**：支持复杂的权限规则组合
+- **实时性**：基于Token缓存，支持动态权限更新
+- **无状态**：不依赖数据库查询
+- **服务化**：完全集成到服务注册流程
 
 ### 上下文增强
 

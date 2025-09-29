@@ -1824,11 +1824,13 @@ func (app *App) Register(svc Service) error {
 	servicePath := fmt.Sprintf("%s/%s", app.cfg.ModConfig.App.ServicePathPrefix, svc.Name)
 
 	app.Add(fiber.MethodPost, servicePath, func(fc *fiber.Ctx) error {
-		ctx := &Context{Ctx: fc, logger: app.logger}
+		ctx := &Context{Ctx: fc, logger: app.logger, app: app}
+
+		var token string
 
 		// 身份验证检查
 		if !svc.SkipAuth {
-			token := parseToken(fc, app.tokenKeys)
+			token = parseToken(fc, app.tokenKeys)
 			if token == "" {
 				return fc.Status(401).JSON(NewErrorResponse(ctx, 401, "Unauthorized"))
 			}
@@ -1841,6 +1843,37 @@ func (app *App) Register(svc Service) error {
 					"rid":     ctx.GetRequestID(),
 				}).Warn("Token validation failed")
 				return fc.Status(401).JSON(NewErrorResponse(ctx, 401, "Invalid token"))
+			}
+		}
+
+		// 权限检查
+		if svc.Permission != nil {
+			// 如果配置了权限规则，需要进行权限检查
+			if token == "" {
+				token = parseToken(fc, app.tokenKeys)
+			}
+			if token == "" {
+				return fc.Status(401).JSON(NewErrorResponse(ctx, 401, "Authentication required for permission check"))
+			}
+
+			// 验证token有效性（如果之前没有验证过）
+			if svc.SkipAuth && !app.validateToken(token) {
+				app.logger.WithFields(logrus.Fields{
+					"service": svc.Name,
+					"token":   token,
+					"rid":     ctx.GetRequestID(),
+				}).Warn("Token validation failed during permission check")
+				return fc.Status(401).JSON(NewErrorResponse(ctx, 401, "Invalid token"))
+			}
+
+			// 检查权限
+			if !app.CheckServicePermission(token, svc.Permission) {
+				app.logger.WithFields(logrus.Fields{
+					"service":    svc.Name,
+					"permission": svc.Permission,
+					"rid":        ctx.GetRequestID(),
+				}).Warn("Permission check failed")
+				return fc.Status(403).JSON(NewErrorResponse(ctx, 403, "Insufficient permissions"))
 			}
 		}
 
