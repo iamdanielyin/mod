@@ -610,7 +610,7 @@ app:
   display_name: "我的应用"
   description: "应用描述"
   version: "1.0.0"
-  service_path_prefix: "/services"
+  service_base: "/services"
   token_keys: ["Authorization", "X-API-Key", "mod-token"]
 
 # 服务器配置
@@ -669,7 +669,7 @@ go run main.go
 | `display_name` | string | 应用显示名称 | "MOD Application" |
 | `description` | string | 应用描述 | "" |
 | `version` | string | 应用版本 | "" |
-| `service_path_prefix` | string | 服务路径前缀 | "/services" |
+| `service_base` | string | 服务基础路径 | "/services" |
 | `token_keys` | []string | Token请求头名称 | ["Authorization", "X-API-Key", "mod-token"] |
 
 ### 服务器配置 (server)

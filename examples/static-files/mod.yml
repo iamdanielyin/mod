@@ -3,7 +3,7 @@ app:
   display_name: "静态文件示例"
   description: "演示MOD框架的静态文件服务功能"
   version: "1.0.0"
-  service_path_prefix: "/services"
+  service_base: "/services"
 
 server:
   host: "localhost"

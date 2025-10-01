@@ -3,7 +3,7 @@ app:
   display_name: "加解密示例应用"
   description: "演示MOD框架的服务加解密和签名验证功能"
   version: "1.0.0"
-  service_path_prefix: "/services"
+  service_base: "/services"
   token_keys:
     - "Authorization"
     - "X-API-Key"

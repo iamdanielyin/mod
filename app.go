@@ -45,12 +45,12 @@ func init() {
 type ModConfig struct {
 	App struct {
 		// 应用基础信息
-		Name              string   `yaml:"name"`
-		DisplayName       string   `yaml:"display_name"`
-		Description       string   `yaml:"description"`
-		Version           string   `yaml:"version"`
-		ServicePathPrefix string   `yaml:"service_path_prefix"`
-		TokenKeys         []string `yaml:"token_keys"`
+		Name        string   `yaml:"name"`
+		DisplayName string   `yaml:"display_name"`
+		Description string   `yaml:"description"`
+		Version     string   `yaml:"version"`
+		ServiceBase string   `yaml:"service_base"`
+		TokenKeys   []string `yaml:"token_keys"`
 	} `yaml:"app"`
 
 	// 服务器配置 - 从app中拆分出来的独立配置
@@ -619,8 +619,8 @@ func New(config ...Config) *App {
 	if cfg.ModConfig.App.DisplayName == "" {
 		cfg.ModConfig.App.DisplayName = "MOD Application"
 	}
-	if cfg.ModConfig.App.ServicePathPrefix == "" {
-		cfg.ModConfig.App.ServicePathPrefix = "/services"
+	if cfg.ModConfig.App.ServiceBase == "" {
+		cfg.ModConfig.App.ServiceBase = "/services"
 	}
 	if len(cfg.ModConfig.App.TokenKeys) == 0 {
 		cfg.ModConfig.App.TokenKeys = []string{"Authorization", "X-API-Key", "mod-token"}
@@ -1821,7 +1821,7 @@ func (app *App) Register(svc Service) error {
 	}
 
 	// 构建服务路径
-	servicePath := fmt.Sprintf("%s/%s", app.cfg.ModConfig.App.ServicePathPrefix, svc.Name)
+	servicePath := fmt.Sprintf("%s/%s", app.cfg.ModConfig.App.ServiceBase, svc.Name)
 
 	app.Add(fiber.MethodPost, servicePath, func(fc *fiber.Ctx) error {
 		ctx := &Context{Ctx: fc, logger: app.logger, app: app}
@@ -2760,7 +2760,7 @@ func (app *App) groupAndSortServices() []DocGroup {
 	for _, svc := range app.services {
 		docSvc := DocService{
 			Service:     svc,
-			ServicePath: fmt.Sprintf("%s/%s", app.cfg.ModConfig.App.ServicePathPrefix, svc.Name),
+			ServicePath: fmt.Sprintf("%s/%s", app.cfg.ModConfig.App.ServiceBase, svc.Name),
 		}
 
 		// 解析输入参数
