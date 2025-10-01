@@ -8,7 +8,7 @@ static_mounts:
   # 挂载静态资源目录
   - url_prefix: "/static"
     local_path: "./static"
-    browseable: true
+    browseable: false
     index_file: "index.html"
 
   # 挂载图片目录
