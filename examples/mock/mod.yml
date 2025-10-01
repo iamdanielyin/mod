@@ -1,27 +1,16 @@
-# Mock功能演示配置
-# 这个配置文件展示了MOD框架的三级Mock设置
-
 app:
   name: "mock-demo"
   display_name: "Mock功能演示"
-  description: "演示MOD框架的Mock功能"
 
-# Mock配置 - 支持三个级别的Mock设置
+# Mock配置 - 三级配置：全局、分组、服务
 mock:
-  # 全局Mock设置 - 关闭全局Mock
   global:
     enabled: false
 
-  # 分组级别Mock设置
   groups:
     "用户管理":
-      enabled: true    # 用户管理分组启用Mock
-    "订单管理":
-      enabled: false   # 订单管理分组关闭Mock
-    "消息服务":
-      enabled: false   # 消息服务分组关闭Mock
+      enabled: true
 
-  # 服务级别Mock设置 - 最高优先级
   services:
-    "order-info":
-      enabled: true    # 订单信息服务单独启用Mock
+    "get_order":
+      enabled: true
