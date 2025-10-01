@@ -9,8 +9,8 @@ app:
   display_name: "我的应用"         # 显示名称（中文，用于界面展示）
   description: "这是一个示例应用"    # 应用详细描述
   version: "1.0.0"                # 应用版本
-  service_base: "/services" # 服务基础路径
-  token_keys:                     # Token认证的HTTP头字段
+  service_base: "/services"       # 服务基础路径
+  token_keys: # Token认证的HTTP头字段
     - "Authorization"
     - "X-API-Key"
 
@@ -53,30 +53,30 @@ server:
   etag: false                     # 是否启用ETag
 
   # 可信代理列表
-  trusted_proxies:                # 可信代理列表
+  trusted_proxies: # 可信代理列表
     - "127.0.0.1"
     - "::1"
 
   # CORS跨域配置（默认关闭）
   cors:
     enabled: false                # 是否启用CORS，默认关闭
-    allow_origins:                # 允许的源，启用时默认为 ["*"]
+    allow_origins: # 允许的源，启用时默认为 ["*"]
       - "http://localhost:3000"
       - "https://example.com"
-    allow_methods:                # 允许的HTTP方法，默认为常用方法
+    allow_methods: # 允许的HTTP方法，默认为常用方法
       - "GET"
       - "POST"
       - "PUT"
       - "DELETE"
       - "OPTIONS"
-    allow_headers:                # 允许的请求头，默认为常用头
+    allow_headers: # 允许的请求头，默认为常用头
       - "Origin"
       - "Content-Type"
       - "Accept"
       - "Authorization"
       - "X-Requested-With"
     allow_credentials: false      # 是否允许携带凭证，默认false
-    expose_headers: []            # 暴露的响应头，默认为空
+    expose_headers: [ ]            # 暴露的响应头，默认为空
     max_age: "24h"                # 预检请求缓存时间，默认24小时
 
 # 缓存配置（支持三种缓存类型）
@@ -139,13 +139,13 @@ file_upload:
     enabled: true
     upload_dir: "./uploads"        # 上传文件存储目录
     max_size: "10MB"               # 单文件最大尺寸
-    allowed_types:                 # 允许的MIME类型
+    allowed_types: # 允许的MIME类型
       - "image/jpeg"
       - "image/png"
       - "image/gif"
       - "application/pdf"
       - "text/plain"
-    allowed_exts:                  # 允许的文件扩展名
+    allowed_exts: # 允许的文件扩展名
       - ".jpg"
       - ".jpeg"
       - ".png"

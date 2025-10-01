@@ -2,15 +2,8 @@ app:
   name: "FileUpload"
   display_name: "文件上传示例"
   description: "演示MOD框架的文件上传功能"
-  version: "1.0.0"
 
-server:
-  cors:
-    enabled: true
-    allow_origins: ["*"]
-    allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    allow_headers: ["Origin", "Content-Type", "Accept", "Authorization"]
-
+# 文件上传配置
 file_upload:
   local:
     enabled: true
@@ -39,6 +32,7 @@ file_upload:
     access_key_id: "your-access-key-id"
     access_key_secret: "your-access-key-secret"
 
+# 静态文件挂载 - 用于浏览上传的文件
 static_mounts:
   - url_prefix: "/uploads"
     local_path: "./uploads"
