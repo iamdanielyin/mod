@@ -2,19 +2,3 @@ app:
   name: "BasicServices"
   display_name: "基础服务示例"
   description: "演示MOD框架的基本服务注册和参数验证功能"
-  version: "1.0.0"
-  service_path_prefix: "/services"
-
-server:
-  host: "localhost"
-  port: 8080
-  cors:
-    enabled: true
-    allow_origins: ["*"]
-    allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    allow_headers: ["Origin", "Content-Type", "Accept", "Authorization"]
-
-logging:
-  console:
-    enabled: true
-    level: "info"
