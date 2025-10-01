@@ -8,11 +8,6 @@ app:
   description: "演示MOD框架的Mock功能"
   version: "1.0.0"
 
-# 服务器配置
-server:
-  host: "localhost"
-  port: 8080
-
 # Mock配置 - 支持三个级别的Mock设置
 mock:
   # 全局Mock设置 - 关闭全局Mock
@@ -35,10 +30,6 @@ mock:
 
 # 日志配置
 logging:
-  console:
-    enabled: true
-    level: "info"
-
   file:
     enabled: true
     path: "./logs/mock-demo.log"

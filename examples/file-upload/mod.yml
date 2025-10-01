@@ -3,11 +3,8 @@ app:
   display_name: "文件上传示例"
   description: "演示MOD框架的文件上传功能"
   version: "1.0.0"
-  service_base: "/services"
 
 server:
-  host: "localhost"
-  port: 8080
   cors:
     enabled: true
     allow_origins: ["*"]
@@ -47,8 +44,3 @@ static_mounts:
     local_path: "./uploads"
     browseable: true
     index_file: "index.html"
-
-logging:
-  console:
-    enabled: true
-    level: "info"

@@ -3,11 +3,8 @@ app:
   display_name: "静态文件示例"
   description: "演示MOD框架的静态文件服务功能"
   version: "1.0.0"
-  service_base: "/services"
 
 server:
-  host: "localhost"
-  port: 8080
   cors:
     enabled: true
     allow_origins: ["*"]
@@ -33,8 +30,3 @@ static_mounts:
     local_path: "./docs"
     browseable: false
     index_file: "README.md"
-
-logging:
-  console:
-    enabled: true
-    level: "info"

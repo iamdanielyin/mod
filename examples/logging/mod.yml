@@ -3,11 +3,8 @@ app:
   display_name: "日志示例"
   description: "演示MOD框架的多种日志输出功能"
   version: "1.0.0"
-  service_base: "/services"
 
 server:
-  host: "localhost"
-  port: 8080
   cors:
     enabled: true
     allow_origins: ["*"]
@@ -18,8 +15,7 @@ server:
 logging:
   # 控制台日志
   console:
-    enabled: true
-    level: "debug"  # debug, info, warn, error
+    level: "debug"  # 覆盖默认的info级别
 
   # 文件日志 - 支持日志轮转
   file:
