@@ -2738,22 +2738,7 @@ func (app *App) handleDocs(c *fiber.Ctx) error {
 	docData.AppInfo.Name = app.cfg.ModConfig.App.Name
 	docData.AppInfo.DisplayName = app.cfg.ModConfig.App.DisplayName
 	docData.AppInfo.Description = app.cfg.ModConfig.App.Description
-
-	// 如果有mod配置，优先使用mod配置中的信息
-	if modConfig := app.cfg.ModConfig; modConfig != nil {
-		if modConfig.App.Name != "" {
-			docData.AppInfo.Name = modConfig.App.Name
-		}
-		if modConfig.App.DisplayName != "" {
-			docData.AppInfo.DisplayName = modConfig.App.DisplayName
-		}
-		if modConfig.App.Description != "" {
-			docData.AppInfo.Description = modConfig.App.Description
-		}
-		if modConfig.App.Version != "" {
-			docData.AppInfo.Version = modConfig.App.Version
-		}
-	}
+	docData.AppInfo.Version = app.cfg.ModConfig.App.Version
 
 	// 设置默认值
 	if docData.AppInfo.DisplayName == "" {
