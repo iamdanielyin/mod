@@ -133,31 +133,71 @@ MOD提供了丰富的内置中间件，**所有全局中间件必须在注册服
 
 | 中间件方法 | 功能说明 | 配置要求 |
 |-----------|----------|----------|
-| `app.UseJWT()` | 强制JWT认证中间件，所有请求都必须提供有效JWT token | 需要配置 `jwt` 部分 |
-| `app.UseOptionalJWT()` | 可选JWT认证中间件，验证JWT但允许 `SkipAuth: true` 的服务 | 需要配置 `jwt` 部分 |
+| `app.UseJWT()` | **强制JWT认证** - 所有请求必须提供有效JWT令牌 | 需要配置 `jwt` 部分 |
+| `app.UseOptionalJWT()` | **可选JWT认证** - 验证JWT但允许无令牌访问 | 需要配置 `jwt` 部分 |
 | `app.UseEncryption()` | 服务加解密中间件，自动处理请求解密和响应加密 | 需要配置 `encryption` 部分 |
 
-#### 使用示例
+#### JWT中间件选择指南
 
+**🔒 UseJWT() - 强制认证模式**
 ```go
-func main() {
-    app := mod.New()
+app.UseJWT()  // 严格模式
+```
+- ✅ **适用场景**：API需要严格用户认证
+- ⚠️ **行为**：缺少/无效令牌时立即返回 `401 Unauthorized`
+- 🎯 **推荐**：纯后台管理系统、企业内部API
 
-    // 1. 在注册服务之前配置全局中间件
-    // 推荐顺序：加解密 → JWT认证 → 其他中间件
-    app.UseEncryption()     // 请求解密和响应加密
-    app.UseOptionalJWT()    // 可选JWT认证
+**🔓 UseOptionalJWT() - 灵活认证模式**
+```go
+app.UseOptionalJWT()  // 灵活模式（推荐）
+```
+- ✅ **适用场景**：混合公开/私有接口的应用
+- ⚠️ **行为**：无令牌时继续执行，由服务自行控制认证
+- 🎯 **推荐**：Web应用、移动端API、微服务架构
 
-    // 2. 然后注册服务
-    app.Register(mod.Service{
-        Name:        "get_user",
-        DisplayName: "获取用户信息",
-        Handler:     mod.MakeHandler(handleGetUser),
-        SkipAuth:    false, // false表示需要JWT认证
-    })
+#### 认证控制方式
 
-    app.Run(":8080")
-}
+**方式一：服务级控制（推荐）**
+```go
+app.UseOptionalJWT()  // 全局可选认证
+
+// 公开接口
+app.Register(mod.Service{
+    Name:     "login",
+    SkipAuth: true,  // 跳过认证
+    Handler:  mod.MakeHandler(handleLogin),
+})
+
+// 需要认证的接口
+app.Register(mod.Service{
+    Name:     "user_info",
+    SkipAuth: true,  // 由Handler内部控制
+    Handler: mod.MakeHandler(func(ctx *mod.Context, req *UserInfoRequest, resp *UserInfoResponse) error {
+        if !ctx.IsAuthenticated() {
+            return mod.Reply(401, "需要身份认证")
+        }
+        // 处理已认证用户逻辑
+        return nil
+    }),
+})
+```
+
+**方式二：全局强制认证**
+```go
+app.UseJWT()  // 全局强制认证
+
+// 登录接口需要特殊处理
+app.Register(mod.Service{
+    Name:     "login",
+    SkipAuth: true,  // 必须跳过，否则无法登录
+    Handler:  mod.MakeHandler(handleLogin),
+})
+
+// 其他接口自动认证
+app.Register(mod.Service{
+    Name:    "user_info",
+    Handler: mod.MakeHandler(handleUserInfo),  // 自动要求JWT
+})
 ```
 
 #### 中间件执行顺序
@@ -310,46 +350,197 @@ func handler(ctx *mod.Context, req *Request, resp *Response) error {
 完整的JWT认证系统，使用 `github.com/golang-jwt/jwt/v5` 库：
 
 #### 核心功能
-- Token生成和验证
-- 角色权限控制
-- Token刷新机制
-- Token撤销和黑名单
-- 多种存储后端支持
+- ✅ Token生成和验证
+- 🔐 角色权限控制
+- 🔄 Token刷新机制
+- ❌ Token撤销和黑名单
+- 💾 多种存储后端支持（BigCache、BadgerDB、Redis）
 
-#### 基本用法
+#### 快速开始
 
-```go
-// 生成Token
-tokenResp, err := app.GenerateJWT("user123", "张三", "zhangsan@example.com", "admin", nil)
-
-// 验证Token
-claims, err := app.ValidateJWT(tokenString)
-
-// 刷新Token
-newTokenResp, err := app.RefreshJWT(refreshToken)
-
-// 撤销Token
-err = app.RevokeJWT(tokenString)
-```
-
-#### 配置示例
-
+**1. 配置JWT设置**
 ```yaml
-jwt:
-  enabled: true
-  secret_key: "your-secret-key"
-  issuer: "mod-app"
-  expire_duration: "24h"
-  refresh_expire_duration: "168h"
-  algorithm: "HS256"
-
-# Token验证配置
+# mod.yml
 token:
+  jwt:
+    enabled: true
+    secret_key: "your-super-secret-jwt-key"
+    issuer: "your-app-name"
+    algorithm: "HS256"
+    expire_duration: "24h"
+    refresh_expire_duration: "168h"  # 7天
+
   validation:
     enabled: true
-    skip_expired_check: false
     cache_strategy: "bigcache"
-    cache_key_prefix: "token:"
+    cache_key_prefix: "jwt:"
+```
+
+**2. 启用JWT中间件**
+```go
+func main() {
+    app := mod.New()
+
+    // 选择认证模式（推荐可选模式）
+    app.UseOptionalJWT()
+
+    // 注册服务...
+    app.Run(":8080")
+}
+```
+
+#### 完整用法示例
+
+```go
+// 用户登录 - 生成JWT
+app.Register(mod.Service{
+    Name:     "login",
+    SkipAuth: true,  // 登录接口跳过认证
+    Handler: mod.MakeHandler(func(ctx *mod.Context, req *LoginRequest, resp *LoginResponse) error {
+        // 验证用户名密码...
+        user := validateUser(req.Username, req.Password)
+
+        // 生成JWT令牌
+        tokens, err := app.GenerateJWT(
+            user.ID,
+            user.Username,
+            user.Email,
+            user.Role,
+            map[string]interface{}{  // 自定义声明
+                "login_time": time.Now().Unix(),
+                "permissions": []string{"read", "write"},
+            },
+        )
+        if err != nil {
+            return mod.Reply(500, "生成令牌失败")
+        }
+
+        // 可选：存储令牌到缓存用于权限控制
+        tokenData := map[string]interface{}{
+            "user_id": user.ID,
+            "role":    user.Role,
+            "status":  "active",
+        }
+        app.SetToken(tokens.AccessToken, tokenData)
+
+        resp.User = user
+        resp.Token = tokens
+        return nil
+    }),
+})
+
+// 需要认证的接口
+app.Register(mod.Service{
+    Name:     "user_info",
+    SkipAuth: true,  // 使用内部认证控制
+    Handler: mod.MakeHandler(func(ctx *mod.Context, req *UserInfoRequest, resp *UserInfoResponse) error {
+        // 检查是否已认证
+        if !ctx.IsAuthenticated() {
+            return mod.Reply(401, "需要身份认证")
+        }
+
+        // 获取用户信息
+        userID := ctx.GetUserID()
+        username := ctx.GetUsername()
+        role := ctx.GetUserRole()
+
+        resp.User = User{
+            ID:       userID,
+            Username: username,
+            Role:     role,
+        }
+        return nil
+    }),
+})
+
+// 令牌刷新
+app.Register(mod.Service{
+    Name:     "refresh",
+    SkipAuth: true,
+    Handler: mod.MakeHandler(func(ctx *mod.Context, req *RefreshRequest, resp *mod.TokenResponse) error {
+        // 刷新令牌
+        tokens, err := app.RefreshJWT(req.RefreshToken)
+        if err != nil {
+            return mod.Reply(401, "刷新令牌无效")
+        }
+
+        *resp = *tokens
+        return nil
+    }),
+})
+
+// 用户登出
+app.Register(mod.Service{
+    Name:     "logout",
+    SkipAuth: true,
+    Handler: mod.MakeHandler(func(ctx *mod.Context, req *LogoutRequest, resp *LogoutResponse) error {
+        token := ctx.GetJWTToken()
+        if token == "" {
+            return mod.Reply(401, "未提供令牌")
+        }
+
+        // 撤销令牌（加入黑名单）
+        if err := app.RevokeJWT(token); err != nil {
+            return mod.Reply(500, "登出失败")
+        }
+
+        // 从缓存移除令牌
+        app.RemoveToken(token)
+
+        resp.Message = "登出成功"
+        return nil
+    }),
+})
+```
+
+#### 上下文方法
+
+JWT中间件会自动解析令牌并将信息注入到上下文中：
+
+```go
+// 检查认证状态
+if ctx.IsAuthenticated() {
+    // 用户已认证
+}
+
+// 获取用户信息
+userID := ctx.GetUserID()          // 用户ID
+username := ctx.GetUsername()      // 用户名
+email := ctx.GetUserEmail()        // 邮箱
+role := ctx.GetUserRole()          // 角色
+
+// 获取JWT相关信息
+token := ctx.GetJWTToken()         // 原始JWT令牌
+claims := ctx.GetJWTClaims()       // JWT声明对象
+
+// 获取自定义声明
+if claims != nil {
+    loginTime := claims.ExtraClaims["login_time"]
+}
+```
+
+#### 令牌格式支持
+
+MOD支持两种Authorization头格式：
+
+```bash
+# Bearer格式（标准）
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+# 直接格式
+Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+#### 错误处理
+
+```go
+// 令牌验证失败时的错误响应
+{
+  "code": 401,
+  "message": "Invalid authentication token",
+  "data": null,
+  "timestamp": "2024-01-01T12:00:00Z"
+}
 ```
 
 ### 服务加解密

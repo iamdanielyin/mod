@@ -101,9 +101,35 @@ func main() {
 		Name:        "create_user",
 		DisplayName: "创建用户",
 		Description: "创建新用户，包含敏感信息（薪资、密码），需要加密传输",
-		Handler:     mod.MakeHandler(handleCreateUser),
-		Group:       "用户管理（加密）",
-		Sort:        1,
+		Handler: mod.MakeHandler(func(ctx *mod.Context, req *CreateUserRequest, resp *CreateUserResponse) error {
+			// Create new user
+			newUser := UserData{
+				ID:       fmt.Sprintf("%d", nextID),
+				Name:     req.Name,
+				Email:    req.Email,
+				Age:      req.Age,
+				Role:     req.Role,
+				Salary:   req.Salary,
+				Password: req.Password,
+			}
+
+			// Store user
+			users[newUser.ID] = newUser
+			nextID++
+
+			resp.User = newUser
+			resp.Message = "用户创建成功"
+
+			ctx.WithFields(map[string]interface{}{
+				"user_id": newUser.ID,
+				"name":    newUser.Name,
+				"role":    newUser.Role,
+			}).Info("User created successfully")
+
+			return nil
+		}),
+		Group: "用户管理（加密）",
+		Sort:  1,
 	})
 
 	// Register get user service (with encryption - contains sensitive data)
@@ -111,9 +137,25 @@ func main() {
 		Name:        "get_user",
 		DisplayName: "获取用户详细信息",
 		Description: "获取用户的完整信息，包含敏感数据（薪资、密码），需要加密传输",
-		Handler:     mod.MakeHandler(handleGetUser),
-		Group:       "用户管理（加密）",
-		Sort:        2,
+		Handler: mod.MakeHandler(func(ctx *mod.Context, req *GetUserRequest, resp *GetUserResponse) error {
+			// Find user
+			user, exists := users[req.ID]
+			if !exists {
+				return mod.Reply(404, "用户不存在")
+			}
+
+			resp.User = user
+			resp.Message = "用户信息获取成功"
+
+			ctx.WithFields(map[string]interface{}{
+				"user_id": user.ID,
+				"name":    user.Name,
+			}).Info("User details retrieved")
+
+			return nil
+		}),
+		Group: "用户管理（加密）",
+		Sort:  2,
 	})
 
 	// Register get public user service (without encryption - no sensitive data)
@@ -121,9 +163,32 @@ func main() {
 		Name:        "get_public_user",
 		DisplayName: "获取公开用户信息",
 		Description: "获取用户的公开信息，不包含敏感数据，无需加密传输",
-		Handler:     mod.MakeHandler(handleGetPublicUser),
-		Group:       "用户管理（公开）",
-		Sort:        1,
+		Handler: mod.MakeHandler(func(ctx *mod.Context, req *GetPublicUserRequest, resp *GetPublicUserResponse) error {
+			// Find user
+			user, exists := users[req.ID]
+			if !exists {
+				return mod.Reply(404, "用户不存在")
+			}
+
+			// Return only public information (no sensitive data)
+			resp.User = PublicUserData{
+				ID:    user.ID,
+				Name:  user.Name,
+				Email: user.Email,
+				Age:   user.Age,
+				Role:  user.Role,
+			}
+			resp.Message = "公开用户信息获取成功"
+
+			ctx.WithFields(map[string]interface{}{
+				"user_id": user.ID,
+				"name":    user.Name,
+			}).Info("Public user info retrieved")
+
+			return nil
+		}),
+		Group: "用户管理（公开）",
+		Sort:  1,
 	})
 
 	log.Println("Encryption Example Server Starting...")
@@ -146,78 +211,4 @@ func main() {
 	log.Println("    -d '{\"id\":\"1\"}'")
 
 	app.Run(":8080")
-}
-
-// Handle create user
-func handleCreateUser(ctx *mod.Context, req *CreateUserRequest, resp *CreateUserResponse) error {
-	// Create new user
-	newUser := UserData{
-		ID:       fmt.Sprintf("%d", nextID),
-		Name:     req.Name,
-		Email:    req.Email,
-		Age:      req.Age,
-		Role:     req.Role,
-		Salary:   req.Salary,
-		Password: req.Password,
-	}
-
-	// Store user
-	users[newUser.ID] = newUser
-	nextID++
-
-	resp.User = newUser
-	resp.Message = "用户创建成功"
-
-	ctx.WithFields(map[string]interface{}{
-		"user_id": newUser.ID,
-		"name":    newUser.Name,
-		"role":    newUser.Role,
-	}).Info("User created successfully")
-
-	return nil
-}
-
-// Handle get user
-func handleGetUser(ctx *mod.Context, req *GetUserRequest, resp *GetUserResponse) error {
-	// Find user
-	user, exists := users[req.ID]
-	if !exists {
-		return mod.Reply(404, "用户不存在")
-	}
-
-	resp.User = user
-	resp.Message = "用户信息获取成功"
-
-	ctx.WithFields(map[string]interface{}{
-		"user_id": user.ID,
-		"name":    user.Name,
-	}).Info("User details retrieved")
-
-	return nil
-}
-
-// Handle get public user
-func handleGetPublicUser(ctx *mod.Context, req *GetPublicUserRequest, resp *GetPublicUserResponse) error {
-	// Find user
-	user, exists := users[req.ID]
-	if !exists {
-		return mod.Reply(404, "用户不存在")
-	}
-
-	// Return only public information (no sensitive data)
-	resp.User = PublicUserData{
-		ID:    user.ID,
-		Name:  user.Name,
-		Email: user.Email,
-		Age:   user.Age,
-		Role:  user.Role,
-	}
-	resp.Message = "公开用户信息获取成功"
-
-	ctx.WithFields(map[string]interface{}{
-		"user_id": user.ID,
-		"name":    user.Name,
-	}).Info("Public user info retrieved")
-
-	return nil
 }

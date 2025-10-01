@@ -20,57 +20,9 @@ type LogTestResponse struct {
 	Timestamp string `json:"timestamp"`
 }
 
-func main() {
-	app := mod.New()
-
-	// Register log test service
-	app.Register(mod.Service{
-		Name:        "log_test",
-		DisplayName: "日志测试",
-		Description: "测试不同级别的日志输出",
-		Handler:     mod.MakeHandler(handleLogTest),
-		Group:       "日志功能",
-		Sort:        1,
-		SkipAuth:    true,
-	})
-
-	// Register log info service
-	app.Register(mod.Service{
-		Name:        "log_info",
-		DisplayName: "日志配置信息",
-		Description: "获取当前日志配置信息",
-		Handler:     mod.MakeHandler(handleLogInfo),
-		Group:       "日志功能",
-		Sort:        2,
-		SkipAuth:    true,
-	})
-
-	app.Run(":8080")
-}
-
-// Handle log test
-func handleLogTest(ctx *mod.Context, req *LogTestRequest, resp *LogTestResponse) error {
-	logger := ctx.Logger()
-
-	// 根据请求的级别记录日志
-	switch req.Level {
-	case "debug":
-		logger.WithField("data", req.Data).Debug(req.Message)
-	case "info":
-		logger.WithField("data", req.Data).Info(req.Message)
-	case "warn":
-		logger.WithField("data", req.Data).Warn(req.Message)
-	case "error":
-		logger.WithField("data", req.Data).Error(req.Message)
-	default:
-		return mod.Reply(400, "无效的日志级别")
-	}
-
-	resp.Success = true
-	resp.Message = "日志记录成功"
-	resp.Timestamp = time.Now().Format(time.RFC3339)
-
-	return nil
+// LogInfoRequest represents log info request
+type LogInfoRequest struct {
+	// Empty struct for log info request
 }
 
 // LogInfoResponse represents log configuration info
@@ -84,23 +36,70 @@ type LogInfoResponse struct {
 	SLSEnabled     bool   `json:"sls_enabled"`
 }
 
-// Handle log info
-func handleLogInfo(ctx *mod.Context, req interface{}, resp *LogInfoResponse) error {
-	config := ctx.App().GetModConfig()
-	if config == nil {
-		resp.ConsoleEnabled = true
-		resp.ConsoleLevel = "info"
-		return nil
-	}
+func main() {
+	app := mod.New()
 
-	logging := config.Logging
-	resp.ConsoleEnabled = logging.Console.Enabled
-	resp.ConsoleLevel = logging.Console.Level
-	resp.FileEnabled = logging.File.Enabled
-	resp.FilePath = logging.File.Path
-	resp.LokiEnabled = logging.Loki.Enabled
-	resp.LokiURL = logging.Loki.URL
-	resp.SLSEnabled = logging.SLS.Enabled
+	// Register log test service
+	app.Register(mod.Service{
+		Name:        "log_test",
+		DisplayName: "日志测试",
+		Description: "测试不同级别的日志输出",
+		Handler: mod.MakeHandler(func(ctx *mod.Context, req *LogTestRequest, resp *LogTestResponse) error {
+			logger := ctx.Logger()
 
-	return nil
+			// 根据请求的级别记录日志
+			switch req.Level {
+			case "debug":
+				logger.WithField("data", req.Data).Debug(req.Message)
+			case "info":
+				logger.WithField("data", req.Data).Info(req.Message)
+			case "warn":
+				logger.WithField("data", req.Data).Warn(req.Message)
+			case "error":
+				logger.WithField("data", req.Data).Error(req.Message)
+			default:
+				return mod.Reply(400, "无效的日志级别")
+			}
+
+			resp.Success = true
+			resp.Message = "日志记录成功"
+			resp.Timestamp = time.Now().Format(time.RFC3339)
+
+			return nil
+		}),
+		Group:    "日志功能",
+		Sort:     1,
+		SkipAuth: true,
+	})
+
+	// Register log info service
+	app.Register(mod.Service{
+		Name:        "log_info",
+		DisplayName: "日志配置信息",
+		Description: "获取当前日志配置信息",
+		Handler: mod.MakeHandler(func(ctx *mod.Context, req *LogInfoRequest, resp *LogInfoResponse) error {
+			config := ctx.App().GetModConfig()
+			if config == nil {
+				resp.ConsoleEnabled = true
+				resp.ConsoleLevel = "info"
+				return nil
+			}
+
+			logging := config.Logging
+			resp.ConsoleEnabled = logging.Console.Enabled
+			resp.ConsoleLevel = logging.Console.Level
+			resp.FileEnabled = logging.File.Enabled
+			resp.FilePath = logging.File.Path
+			resp.LokiEnabled = logging.Loki.Enabled
+			resp.LokiURL = logging.Loki.URL
+			resp.SLSEnabled = logging.SLS.Enabled
+
+			return nil
+		}),
+		Group:    "日志功能",
+		Sort:     2,
+		SkipAuth: true,
+	})
+
+	app.Run(":8080")
 }
