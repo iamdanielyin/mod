@@ -21,7 +21,7 @@ func NewMockGenerator() *MockGenerator {
 }
 
 // GenerateMockData 根据类型生成Mock数据
-func (m *MockGenerator) GenerateMockData(t reflect.Type) interface{} {
+func (m *MockGenerator) GenerateMockData(t reflect.Type) any {
 	if t == nil {
 		return nil
 	}
@@ -67,7 +67,7 @@ func (m *MockGenerator) GenerateMockData(t reflect.Type) interface{} {
 		return m.generateStructValue(t)
 
 	case reflect.Interface:
-		// 对于interface{}类型，生成一个字符串值
+		// 对于any类型，生成一个字符串值
 		return "mock_interface_value"
 
 	default:
@@ -76,7 +76,7 @@ func (m *MockGenerator) GenerateMockData(t reflect.Type) interface{} {
 }
 
 // generateIntValue 生成整数类型的Mock值
-func (m *MockGenerator) generateIntValue(kind reflect.Kind) interface{} {
+func (m *MockGenerator) generateIntValue(kind reflect.Kind) any {
 	base := m.rand.Int63n(1000) + 1 // 1-1000的随机数
 
 	switch kind {
@@ -96,7 +96,7 @@ func (m *MockGenerator) generateIntValue(kind reflect.Kind) interface{} {
 }
 
 // generateUintValue 生成无符号整数类型的Mock值
-func (m *MockGenerator) generateUintValue(kind reflect.Kind) interface{} {
+func (m *MockGenerator) generateUintValue(kind reflect.Kind) any {
 	base := uint64(m.rand.Int63n(1000) + 1)
 
 	switch kind {
@@ -116,7 +116,7 @@ func (m *MockGenerator) generateUintValue(kind reflect.Kind) interface{} {
 }
 
 // generateFloatValue 生成浮点数类型的Mock值
-func (m *MockGenerator) generateFloatValue(kind reflect.Kind) interface{} {
+func (m *MockGenerator) generateFloatValue(kind reflect.Kind) any {
 	base := m.rand.Float64() * 1000
 
 	switch kind {
@@ -145,7 +145,7 @@ func (m *MockGenerator) generateStringValue() string {
 }
 
 // generateSliceValue 生成切片类型的Mock值
-func (m *MockGenerator) generateSliceValue(t reflect.Type) interface{} {
+func (m *MockGenerator) generateSliceValue(t reflect.Type) any {
 	elemType := t.Elem()
 	length := m.rand.Intn(5) + 1 // 1-5个元素
 
@@ -161,7 +161,7 @@ func (m *MockGenerator) generateSliceValue(t reflect.Type) interface{} {
 }
 
 // generateArrayValue 生成数组类型的Mock值
-func (m *MockGenerator) generateArrayValue(t reflect.Type) interface{} {
+func (m *MockGenerator) generateArrayValue(t reflect.Type) any {
 	elemType := t.Elem()
 	length := t.Len()
 
@@ -177,7 +177,7 @@ func (m *MockGenerator) generateArrayValue(t reflect.Type) interface{} {
 }
 
 // generateMapValue 生成Map类型的Mock值
-func (m *MockGenerator) generateMapValue(t reflect.Type) interface{} {
+func (m *MockGenerator) generateMapValue(t reflect.Type) any {
 	keyType := t.Key()
 	valueType := t.Elem()
 
@@ -197,7 +197,7 @@ func (m *MockGenerator) generateMapValue(t reflect.Type) interface{} {
 }
 
 // generateStructValue 生成结构体类型的Mock值
-func (m *MockGenerator) generateStructValue(t reflect.Type) interface{} {
+func (m *MockGenerator) generateStructValue(t reflect.Type) any {
 	structValue := reflect.New(t).Elem()
 
 	for i := 0; i < t.NumField(); i++ {
@@ -220,7 +220,7 @@ func (m *MockGenerator) generateStructValue(t reflect.Type) interface{} {
 }
 
 // generateFieldMockValue 根据字段信息生成特定的Mock值
-func (m *MockGenerator) generateFieldMockValue(field reflect.StructField, fieldType reflect.Type) interface{} {
+func (m *MockGenerator) generateFieldMockValue(field reflect.StructField, fieldType reflect.Type) any {
 	fieldName := strings.ToLower(field.Name)
 	jsonTag := field.Tag.Get("json")
 	descTag := field.Tag.Get("desc")
@@ -244,7 +244,7 @@ func (m *MockGenerator) generateFieldMockValue(field reflect.StructField, fieldT
 }
 
 // generateSpecificMockValue 根据字段名生成特定的Mock值
-func (m *MockGenerator) generateSpecificMockValue(fieldName, desc string, fieldType reflect.Type) interface{} {
+func (m *MockGenerator) generateSpecificMockValue(fieldName, desc string, fieldType reflect.Type) any {
 	if fieldType.Kind() != reflect.String {
 		return nil
 	}
@@ -332,7 +332,7 @@ func (app *App) isMockEnabled(service *Service) bool {
 }
 
 // generateMockResponse 为服务生成Mock响应
-func (app *App) generateMockResponse(service *Service) interface{} {
+func (app *App) generateMockResponse(service *Service) any {
 	if service.Handler.OutputType == nil {
 		return nil
 	}

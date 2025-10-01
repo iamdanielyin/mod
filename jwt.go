@@ -11,11 +11,11 @@ import (
 
 // JWTClaims represents the JWT claims structure
 type JWTClaims struct {
-	UserID   string                 `json:"user_id"`
-	Username string                 `json:"username"`
-	Email    string                 `json:"email"`
-	Role     string                 `json:"role"`
-	Extra    map[string]interface{} `json:"extra,omitempty"`
+	UserID   string         `json:"user_id"`
+	Username string         `json:"username"`
+	Email    string         `json:"email"`
+	Role     string         `json:"role"`
+	Extra    map[string]any `json:"extra,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -50,7 +50,7 @@ func (j *JWTManager) IsEnabled() bool {
 }
 
 // GenerateTokens generates both access and refresh tokens
-func (j *JWTManager) GenerateTokens(userID, username, email, role string, extra map[string]interface{}) (*TokenResponse, error) {
+func (j *JWTManager) GenerateTokens(userID, username, email, role string, extra map[string]any) (*TokenResponse, error) {
 	if !j.IsEnabled() {
 		return nil, errors.New("JWT is not enabled")
 	}
@@ -125,10 +125,10 @@ func (j *JWTManager) GenerateTokens(userID, username, email, role string, extra 
 	}
 
 	j.logger.WithFields(logrus.Fields{
-		"user_id":                    userID,
-		"username":                   username,
-		"access_token_expires_in":    accessExpire,
-		"refresh_token_expires_in":   refreshExpire,
+		"user_id":                  userID,
+		"username":                 username,
+		"access_token_expires_in":  accessExpire,
+		"refresh_token_expires_in": refreshExpire,
 	}).Info("JWT tokens generated successfully")
 
 	return response, nil
@@ -146,7 +146,7 @@ func (j *JWTManager) ValidateToken(tokenString string) (*JWTClaims, error) {
 	}
 
 	// Parse and validate token
-	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (any, error) {
 		// Validate signing method
 		expectedMethod := j.getSigningMethod(jwtConfig.Algorithm)
 		if token.Method != expectedMethod {
@@ -212,7 +212,7 @@ func (j *JWTManager) RevokeToken(tokenString string) error {
 		blacklistKey := validationConfig.CacheKeyPrefix + "blacklist:" + tokenString
 
 		// Store in cache until token expires
-		err := j.app.SetToken(blacklistKey, map[string]interface{}{
+		err := j.app.SetToken(blacklistKey, map[string]any{
 			"revoked_at": time.Now(),
 			"user_id":    claims.UserID,
 		})

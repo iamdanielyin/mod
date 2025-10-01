@@ -102,13 +102,13 @@ func main() {
 				user.Username,
 				user.Email,
 				user.Role,
-				map[string]interface{}{
+				map[string]any{
 					"login_time": time.Now().Unix(),
 					"login_ip":   ctx.IP(),
 				},
 			)
 			if err != nil {
-				ctx.WithFields(map[string]interface{}{
+				ctx.WithFields(map[string]any{
 					"user_id": user.ID,
 					"error":   err.Error(),
 				}).Error("生成JWT令牌失败")
@@ -116,7 +116,7 @@ func main() {
 			}
 
 			// Store token in cache
-			tokenData := map[string]interface{}{
+			tokenData := map[string]any{
 				"user_id":    user.ID,
 				"username":   user.Username,
 				"email":      user.Email,
@@ -126,7 +126,7 @@ func main() {
 			}
 
 			if err := appInstance.SetToken(tokens.AccessToken, tokenData); err != nil {
-				ctx.WithFields(map[string]interface{}{
+				ctx.WithFields(map[string]any{
 					"user_id": user.ID,
 					"error":   err.Error(),
 				}).Warn("存储令牌到缓存失败")
@@ -135,7 +135,7 @@ func main() {
 			resp.User = user
 			resp.Token = tokens
 
-			ctx.WithFields(map[string]interface{}{
+			ctx.WithFields(map[string]any{
 				"user_id":  user.ID,
 				"username": user.Username,
 			}).Info("用户登录成功")
@@ -161,7 +161,7 @@ func main() {
 
 			// Revoke the token
 			if err := appInstance.RevokeJWT(token); err != nil {
-				ctx.WithFields(map[string]interface{}{
+				ctx.WithFields(map[string]any{
 					"error": err.Error(),
 				}).Error("撤销JWT令牌失败")
 				return mod.Reply(500, "登出失败")
@@ -169,14 +169,14 @@ func main() {
 
 			// Remove token from cache
 			if err := appInstance.RemoveToken(token); err != nil {
-				ctx.WithFields(map[string]interface{}{
+				ctx.WithFields(map[string]any{
 					"error": err.Error(),
 				}).Warn("从缓存移除令牌失败")
 			}
 
 			resp.Message = "登出成功"
 
-			ctx.WithFields(map[string]interface{}{
+			ctx.WithFields(map[string]any{
 				"user_id": ctx.GetUserID(),
 			}).Info("用户登出成功")
 
@@ -196,17 +196,17 @@ func main() {
 			// Refresh the token
 			tokens, err := appInstance.RefreshJWT(req.RefreshToken)
 			if err != nil {
-				ctx.WithFields(map[string]interface{}{
+				ctx.WithFields(map[string]any{
 					"error": err.Error(),
 				}).Error("刷新JWT令牌失败")
 				return mod.Reply(401, "刷新令牌无效")
 			}
 
 			// Store new token in cache
-			if err := appInstance.SetToken(tokens.AccessToken, map[string]interface{}{
+			if err := appInstance.SetToken(tokens.AccessToken, map[string]any{
 				"refreshed_at": time.Now().Unix(),
 			}); err != nil {
-				ctx.WithFields(map[string]interface{}{
+				ctx.WithFields(map[string]any{
 					"error": err.Error(),
 				}).Warn("存储刷新后的令牌失败")
 			}
@@ -247,7 +247,7 @@ func main() {
 			}
 			resp.Message = "用户信息获取成功"
 
-			ctx.WithFields(map[string]interface{}{
+			ctx.WithFields(map[string]any{
 				"user_id": userID,
 			}).Info("获取用户信息")
 

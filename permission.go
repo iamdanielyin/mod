@@ -22,7 +22,7 @@ func (app *App) CheckServicePermission(token string, permission *PermissionConfi
 	}
 
 	// 解析Token数据为map
-	var data map[string]interface{}
+	var data map[string]any
 	if err := json.Unmarshal(tokenData, &data); err != nil {
 		app.logger.WithField("error", err.Error()).Debug("Failed to unmarshal token data for permission check")
 		return false
@@ -55,7 +55,7 @@ func (app *App) CheckServicePermission(token string, permission *PermissionConfi
 }
 
 // evaluatePermissionRule 评估单个权限规则
-func (app *App) evaluatePermissionRule(data map[string]interface{}, rule PermissionRule) bool {
+func (app *App) evaluatePermissionRule(data map[string]any, rule PermissionRule) bool {
 	// 获取字段值
 	fieldValue := getNestedValue(data, rule.Field)
 
@@ -87,7 +87,7 @@ func (app *App) evaluatePermissionRule(data map[string]interface{}, rule Permiss
 }
 
 // getNestedValue 获取嵌套字段的值，支持点分隔路径如 "user.role"
-func getNestedValue(data map[string]interface{}, fieldPath string) interface{} {
+func getNestedValue(data map[string]any, fieldPath string) any {
 	if fieldPath == "" {
 		return nil
 	}
@@ -110,7 +110,7 @@ func getNestedValue(data map[string]interface{}, fieldPath string) interface{} {
 
 		// 中间字段，继续向下查找
 		if val, ok := current[part]; ok {
-			if nextMap, ok := val.(map[string]interface{}); ok {
+			if nextMap, ok := val.(map[string]any); ok {
 				current = nextMap
 			} else {
 				return nil
@@ -124,7 +124,7 @@ func getNestedValue(data map[string]interface{}, fieldPath string) interface{} {
 }
 
 // compareValues 比较两个值
-func compareValues(fieldValue, expectedValue interface{}, operator string) bool {
+func compareValues(fieldValue, expectedValue any, operator string) bool {
 	if fieldValue == nil && expectedValue == nil {
 		return operator == "eq"
 	}
@@ -146,7 +146,7 @@ func compareValues(fieldValue, expectedValue interface{}, operator string) bool 
 }
 
 // valuesEqual 判断两个值是否相等
-func valuesEqual(a, b interface{}) bool {
+func valuesEqual(a, b any) bool {
 	// 直接比较
 	if a == b {
 		return true
@@ -170,7 +170,7 @@ func valuesEqual(a, b interface{}) bool {
 }
 
 // compareNumbers 比较数字
-func compareNumbers(fieldValue, expectedValue interface{}, operator string) bool {
+func compareNumbers(fieldValue, expectedValue any, operator string) bool {
 	fieldNum, fieldOk := toFloat64(fieldValue)
 	expectedNum, expectedOk := toFloat64(expectedValue)
 
@@ -193,7 +193,7 @@ func compareNumbers(fieldValue, expectedValue interface{}, operator string) bool
 }
 
 // toFloat64 尝试将值转换为float64
-func toFloat64(value interface{}) (float64, bool) {
+func toFloat64(value any) (float64, bool) {
 	switch v := value.(type) {
 	case float64:
 		return v, true
@@ -220,7 +220,7 @@ func toFloat64(value interface{}) (float64, bool) {
 }
 
 // valueInSlice 检查值是否在切片中
-func valueInSlice(fieldValue, expectedValue interface{}) bool {
+func valueInSlice(fieldValue, expectedValue any) bool {
 	expectedSlice := reflect.ValueOf(expectedValue)
 	if expectedSlice.Kind() != reflect.Slice && expectedSlice.Kind() != reflect.Array {
 		return false
@@ -236,7 +236,7 @@ func valueInSlice(fieldValue, expectedValue interface{}) bool {
 }
 
 // stringContains 检查字符串包含关系
-func stringContains(fieldValue, expectedValue interface{}) bool {
+func stringContains(fieldValue, expectedValue any) bool {
 	fieldStr := fmt.Sprintf("%v", fieldValue)
 	expectedStr := fmt.Sprintf("%v", expectedValue)
 	return strings.Contains(fieldStr, expectedStr)

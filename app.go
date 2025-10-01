@@ -1686,19 +1686,19 @@ type badgerLogger struct {
 	logger *logrus.Logger
 }
 
-func (bl *badgerLogger) Errorf(f string, v ...interface{}) {
+func (bl *badgerLogger) Errorf(f string, v ...any) {
 	bl.logger.Errorf("BadgerDB: "+f, v...)
 }
 
-func (bl *badgerLogger) Warningf(f string, v ...interface{}) {
+func (bl *badgerLogger) Warningf(f string, v ...any) {
 	bl.logger.Warnf("BadgerDB: "+f, v...)
 }
 
-func (bl *badgerLogger) Infof(f string, v ...interface{}) {
+func (bl *badgerLogger) Infof(f string, v ...any) {
 	bl.logger.Infof("BadgerDB: "+f, v...)
 }
 
-func (bl *badgerLogger) Debugf(f string, v ...interface{}) {
+func (bl *badgerLogger) Debugf(f string, v ...any) {
 	bl.logger.Debugf("BadgerDB: "+f, v...)
 }
 
@@ -1878,7 +1878,7 @@ func (app *App) Register(svc Service) error {
 		}
 
 		// 创建输入参数实例
-		var in, out interface{}
+		var in, out any
 		if svc.Handler.InputType != nil {
 			in = reflect.New(svc.Handler.InputType).Interface()
 			// 解析请求参数到结构体
@@ -2147,7 +2147,7 @@ func (app *App) validateToken(token string) bool {
 // JWT Token管理方法
 
 // GenerateJWT generates JWT tokens for a user
-func (app *App) GenerateJWT(userID, username, email, role string, extra map[string]interface{}) (*TokenResponse, error) {
+func (app *App) GenerateJWT(userID, username, email, role string, extra map[string]any) (*TokenResponse, error) {
 	jwtManager := app.GetJWTManager()
 	return jwtManager.GenerateTokens(userID, username, email, role, extra)
 }
@@ -2261,7 +2261,7 @@ func (app *App) VerifySignature(data, signature []byte) error {
 
 // SetToken 将 token 添加到缓存中
 // 这个方法可以在用户登录时调用，将有效的 token 存储到缓存中
-func (app *App) SetToken(token string, data interface{}) error {
+func (app *App) SetToken(token string, data any) error {
 	if app.cfg.ModConfig == nil || !app.cfg.ModConfig.Token.Validation.Enabled {
 		return nil
 	}
@@ -2574,7 +2574,7 @@ func (app *App) Close() error {
 	return nil
 }
 
-func (app *App) parseRequestParamsToStruct(fc *fiber.Ctx, in interface{}) error {
+func (app *App) parseRequestParamsToStruct(fc *fiber.Ctx, in any) error {
 	if in == nil {
 		return nil
 	}

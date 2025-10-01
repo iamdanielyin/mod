@@ -45,14 +45,14 @@ type OrderInfoRequest struct {
 
 // 订单信息响应
 type OrderInfoResponse struct {
-	ID          string                 `json:"id" desc:"订单ID"`
-	UserID      string                 `json:"user_id" desc:"用户ID"`
-	ProductName string                 `json:"product_name" desc:"商品名称"`
-	Amount      float64                `json:"amount" desc:"订单金额"`
-	Status      string                 `json:"status" desc:"订单状态"`
-	Items       []OrderItem            `json:"items" desc:"订单项"`
-	Metadata    map[string]interface{} `json:"metadata" desc:"元数据"`
-	CreateAt    time.Time              `json:"create_at" desc:"创建时间"`
+	ID          string         `json:"id" desc:"订单ID"`
+	UserID      string         `json:"user_id" desc:"用户ID"`
+	ProductName string         `json:"product_name" desc:"商品名称"`
+	Amount      float64        `json:"amount" desc:"订单金额"`
+	Status      string         `json:"status" desc:"订单状态"`
+	Items       []OrderItem    `json:"items" desc:"订单项"`
+	Metadata    map[string]any `json:"metadata" desc:"元数据"`
+	CreateAt    time.Time      `json:"create_at" desc:"创建时间"`
 }
 
 // 订单项
@@ -140,7 +140,7 @@ func registerUserServices(app *mod.App) {
 			resp.Status = "active"
 			resp.CreateAt = time.Now()
 
-			ctx.GetLogger().WithFields(map[string]interface{}{
+			ctx.GetLogger().WithFields(map[string]any{
 				"user_id": req.UserID,
 			}).Info("实际获取用户信息")
 
@@ -172,7 +172,7 @@ func registerUserServices(app *mod.App) {
 			resp.Total = 1
 			resp.Page = req.Page
 
-			ctx.GetLogger().WithFields(map[string]interface{}{
+			ctx.GetLogger().WithFields(map[string]any{
 				"page":      req.Page,
 				"page_size": req.PageSize,
 			}).Info("实际获取用户列表")
@@ -207,13 +207,13 @@ func registerOrderServices(app *mod.App) {
 					Quantity:  2,
 				},
 			}
-			resp.Metadata = map[string]interface{}{
+			resp.Metadata = map[string]any{
 				"payment_method": "credit_card",
 				"shipping":       "express",
 			}
 			resp.CreateAt = time.Now()
 
-			ctx.GetLogger().WithFields(map[string]interface{}{
+			ctx.GetLogger().WithFields(map[string]any{
 				"order_id": req.OrderID,
 			}).Info("实际获取订单信息")
 
@@ -238,7 +238,7 @@ func registerMessageServices(app *mod.App) {
 			resp.Status = "sent"
 			resp.SentAt = time.Now()
 
-			ctx.GetLogger().WithFields(map[string]interface{}{
+			ctx.GetLogger().WithFields(map[string]any{
 				"to_user_id": req.ToUserID,
 				"message":    req.Message,
 				"type":       req.Type,

@@ -37,49 +37,49 @@ func (c *Context) App() *App {
 }
 
 // Logger methods with automatic rid inclusion
-func (c *Context) Debug(args ...interface{}) {
+func (c *Context) Debug(args ...any) {
 	if c.logger != nil {
 		c.logger.WithField("rid", c.GetRequestID()).Debug(args...)
 	}
 }
 
-func (c *Context) Debugf(format string, args ...interface{}) {
+func (c *Context) Debugf(format string, args ...any) {
 	if c.logger != nil {
 		c.logger.WithField("rid", c.GetRequestID()).Debugf(format, args...)
 	}
 }
 
-func (c *Context) Info(args ...interface{}) {
+func (c *Context) Info(args ...any) {
 	if c.logger != nil {
 		c.logger.WithField("rid", c.GetRequestID()).Info(args...)
 	}
 }
 
-func (c *Context) Infof(format string, args ...interface{}) {
+func (c *Context) Infof(format string, args ...any) {
 	if c.logger != nil {
 		c.logger.WithField("rid", c.GetRequestID()).Infof(format, args...)
 	}
 }
 
-func (c *Context) Warn(args ...interface{}) {
+func (c *Context) Warn(args ...any) {
 	if c.logger != nil {
 		c.logger.WithField("rid", c.GetRequestID()).Warn(args...)
 	}
 }
 
-func (c *Context) Warnf(format string, args ...interface{}) {
+func (c *Context) Warnf(format string, args ...any) {
 	if c.logger != nil {
 		c.logger.WithField("rid", c.GetRequestID()).Warnf(format, args...)
 	}
 }
 
-func (c *Context) Error(args ...interface{}) {
+func (c *Context) Error(args ...any) {
 	if c.logger != nil {
 		c.logger.WithField("rid", c.GetRequestID()).Error(args...)
 	}
 }
 
-func (c *Context) Errorf(format string, args ...interface{}) {
+func (c *Context) Errorf(format string, args ...any) {
 	if c.logger != nil {
 		c.logger.WithField("rid", c.GetRequestID()).Errorf(format, args...)
 	}
@@ -110,7 +110,7 @@ type PermissionRule struct {
 	// 操作符：eq, ne, in, not_in, gt, gte, lt, lte, contains, exists
 	Operator string `json:"operator"`
 	// 期望值
-	Value interface{} `json:"value"`
+	Value any `json:"value"`
 }
 
 // PermissionConfig 权限配置
@@ -187,15 +187,15 @@ func ReplyWithDetail(code int, msg, detail string) error {
 
 // 统一响应格式
 type ApiResponse struct {
-	Code   int         `json:"code"`
-	Data   interface{} `json:"data,omitempty"`
-	Msg    string      `json:"msg"`
-	Detail string      `json:"detail,omitempty"`
-	Rid    string      `json:"rid"`
+	Code   int    `json:"code"`
+	Data   any    `json:"data,omitempty"`
+	Msg    string `json:"msg"`
+	Detail string `json:"detail,omitempty"`
+	Rid    string `json:"rid"`
 }
 
 // 生成成功响应
-func NewSuccessResponse(ctx *Context, data interface{}) *ApiResponse {
+func NewSuccessResponse(ctx *Context, data any) *ApiResponse {
 	return &ApiResponse{
 		Code: 0,
 		Data: data,

@@ -120,7 +120,7 @@ func main() {
 			resp.User = newUser
 			resp.Message = "用户创建成功"
 
-			ctx.WithFields(map[string]interface{}{
+			ctx.WithFields(map[string]any{
 				"user_id": newUser.ID,
 				"name":    newUser.Name,
 				"role":    newUser.Role,
@@ -147,7 +147,7 @@ func main() {
 			resp.User = user
 			resp.Message = "用户信息获取成功"
 
-			ctx.WithFields(map[string]interface{}{
+			ctx.WithFields(map[string]any{
 				"user_id": user.ID,
 				"name":    user.Name,
 			}).Info("User details retrieved")
@@ -180,7 +180,7 @@ func main() {
 			}
 			resp.Message = "公开用户信息获取成功"
 
-			ctx.WithFields(map[string]interface{}{
+			ctx.WithFields(map[string]any{
 				"user_id": user.ID,
 				"name":    user.Name,
 			}).Info("Public user info retrieved")
