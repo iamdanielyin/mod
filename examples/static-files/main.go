@@ -55,5 +55,5 @@ func main() {
 		SkipAuth: true,
 	})
 
-	app.Run(":8080")
+	app.Run()
 }

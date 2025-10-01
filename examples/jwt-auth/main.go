@@ -72,12 +72,8 @@ var users = map[string]User{
 	},
 }
 
-// Global app instance for JWT operations
-var appInstance *mod.App
-
 func main() {
 	app := mod.New()
-	appInstance = app
 
 	// Enable optional JWT middleware
 	app.UseOptionalJWT()
@@ -97,7 +93,7 @@ func main() {
 			}
 
 			// Generate JWT tokens
-			tokens, err := appInstance.GenerateJWT(
+			tokens, err := app.GenerateJWT(
 				user.ID,
 				user.Username,
 				user.Email,
@@ -125,7 +121,7 @@ func main() {
 				"login_ip":   ctx.IP(),
 			}
 
-			if err := appInstance.SetToken(tokens.AccessToken, tokenData); err != nil {
+			if err := app.SetToken(tokens.AccessToken, tokenData); err != nil {
 				ctx.WithFields(map[string]any{
 					"user_id": user.ID,
 					"error":   err.Error(),
@@ -160,7 +156,7 @@ func main() {
 			}
 
 			// Revoke the token
-			if err := appInstance.RevokeJWT(token); err != nil {
+			if err := app.RevokeJWT(token); err != nil {
 				ctx.WithFields(map[string]any{
 					"error": err.Error(),
 				}).Error("撤销JWT令牌失败")
@@ -168,7 +164,7 @@ func main() {
 			}
 
 			// Remove token from cache
-			if err := appInstance.RemoveToken(token); err != nil {
+			if err := app.RemoveToken(token); err != nil {
 				ctx.WithFields(map[string]any{
 					"error": err.Error(),
 				}).Warn("从缓存移除令牌失败")
@@ -194,7 +190,7 @@ func main() {
 		SkipAuth:    true,
 		Handler: mod.MakeHandler(func(ctx *mod.Context, req *RefreshRequest, resp *mod.TokenResponse) error {
 			// Refresh the token
-			tokens, err := appInstance.RefreshJWT(req.RefreshToken)
+			tokens, err := app.RefreshJWT(req.RefreshToken)
 			if err != nil {
 				ctx.WithFields(map[string]any{
 					"error": err.Error(),
@@ -203,7 +199,7 @@ func main() {
 			}
 
 			// Store new token in cache
-			if err := appInstance.SetToken(tokens.AccessToken, map[string]any{
+			if err := app.SetToken(tokens.AccessToken, map[string]any{
 				"refreshed_at": time.Now().Unix(),
 			}); err != nil {
 				ctx.WithFields(map[string]any{
@@ -274,5 +270,5 @@ func main() {
 	log.Println("    -H 'Content-Type: application/json' \\")
 	log.Println("    -d '{\"username\":\"admin\",\"password\":\"admin123\"}'")
 
-	app.Run(":8080")
+	app.Run()
 }

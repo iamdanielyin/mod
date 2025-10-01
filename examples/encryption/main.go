@@ -210,5 +210,5 @@ func main() {
 	log.Println("    -H 'Content-Type: application/json' \\")
 	log.Println("    -d '{\"id\":\"1\"}'")
 
-	app.Run(":8080")
+	app.Run()
 }

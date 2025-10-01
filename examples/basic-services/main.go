@@ -86,5 +86,5 @@ func main() {
 		Sort:  2,
 	})
 
-	app.Run(":8080")
+	app.Run()
 }
