@@ -127,45 +127,82 @@ app.Register(mod.Service{
 
 MOD提供了丰富的内置中间件，**所有全局中间件必须在注册服务之前调用**。
 
-#### 支持的中间件类型
+#### 中间件概览
 
-**全局中间件**（使用 `app.UseXXX()` 方法）：
+MOD支持以下全局中间件：
 
-| 中间件方法 | 功能说明 | 配置要求 |
-|-----------|----------|----------|
-| `app.UseJWT()` | **强制JWT认证** - 所有请求必须提供有效JWT令牌 | 需要配置 `jwt` 部分 |
-| `app.UseOptionalJWT()` | **可选JWT认证** - 验证JWT但允许无令牌访问 | 需要配置 `jwt` 部分 |
-| `app.UseEncryption()` | 服务加解密中间件，自动处理请求解密和响应加密 | 需要配置 `encryption` 部分 |
+| 中间件 | 功能说明 | 配置要求 |
+|--------|----------|----------|
+| [JWT认证中间件](#jwt认证中间件) | 提供JWT令牌认证功能 | 需要配置 `token.jwt` 部分 |
+| [加解密中间件](#加解密中间件) | 自动处理请求解密和响应加密 | 需要配置 `encryption` 部分 |
 
-#### JWT中间件选择指南
+#### 中间件执行顺序
 
-**🔒 UseJWT() - 强制认证模式**
 ```go
-app.UseJWT()  // 严格模式
-```
-- ✅ **适用场景**：API需要严格用户认证
-- ⚠️ **行为**：缺少/无效令牌时立即返回 `401 Unauthorized`
-- 🎯 **推荐**：纯后台管理系统、企业内部API
+func main() {
+    app := mod.New()
 
-**🔓 UseOptionalJWT() - 灵活认证模式**
+    // 推荐的中间件调用顺序
+    app.UseEncryption()     // 1. 先处理加解密
+    app.UseOptionalJWT()    // 2. 再处理认证
+
+    // 注册服务...
+    app.Run(":8080")
+}
+```
+
+**执行顺序说明：**
+- 🔐 **加解密中间件** - 首先解密请求数据
+- 🔑 **JWT认证中间件** - 然后验证用户身份
+- 📋 **服务权限检查** - 最后在服务处理前检查权限
+
+---
+
+#### JWT认证中间件
+
+JWT认证中间件提供完整的用户身份认证功能，支持令牌生成、验证、刷新和撤销。
+
+##### 可用方法
+
+MOD提供两种JWT认证模式：
+
+**🔒 强制认证模式**
 ```go
-app.UseOptionalJWT()  // 灵活模式（推荐）
+app.UseJWT()  // 所有请求必须提供有效JWT令牌
 ```
-- ✅ **适用场景**：混合公开/私有接口的应用
-- ⚠️ **行为**：无令牌时继续执行，由服务自行控制认证
-- 🎯 **推荐**：Web应用、移动端API、微服务架构
 
-#### 认证控制方式
+**🔓 可选认证模式（推荐）**
+```go
+app.UseOptionalJWT()  // 验证JWT但允许无令牌访问
+```
 
-**方式一：服务级控制（推荐）**
+##### 模式对比
+
+| 特性 | UseJWT() | UseOptionalJWT() |
+|------|----------|------------------|
+| **缺少令牌时** | 返回 `401` 错误 | 继续执行 |
+| **令牌无效时** | 返回 `401` 错误 | 继续执行 |
+| **黑名单令牌** | 返回 `401` 错误 | 返回 `401` 错误 |
+| **适用场景** | 严格认证的API | 混合公开/私有接口 |
+| **推荐用途** | 企业内部系统 | Web应用、移动APP |
+
+##### 使用策略
+
+**🎯 策略一：灵活控制（推荐）**
+
+适用于需要混合公开/私有接口的应用
+
 ```go
 app.UseOptionalJWT()  // 全局可选认证
 
-// 公开接口
+// 完全公开的接口
 app.Register(mod.Service{
     Name:     "login",
-    SkipAuth: true,  // 跳过认证
-    Handler:  mod.MakeHandler(handleLogin),
+    SkipAuth: true,  // 跳过所有认证检查
+    Handler: mod.MakeHandler(func(ctx *mod.Context, req *LoginRequest, resp *LoginResponse) error {
+        // 登录逻辑，无需认证
+        return nil
+    }),
 })
 
 // 需要认证的接口
@@ -173,37 +210,219 @@ app.Register(mod.Service{
     Name:     "user_info",
     SkipAuth: true,  // 由Handler内部控制
     Handler: mod.MakeHandler(func(ctx *mod.Context, req *UserInfoRequest, resp *UserInfoResponse) error {
+        // 手动检查认证状态
         if !ctx.IsAuthenticated() {
             return mod.Reply(401, "需要身份认证")
         }
-        // 处理已认证用户逻辑
+        // 已认证用户的处理逻辑
+        return nil
+    }),
+})
+
+// 可选认证的接口（个性化功能）
+app.Register(mod.Service{
+    Name:     "get_articles",
+    SkipAuth: true,
+    Handler: mod.MakeHandler(func(ctx *mod.Context, req *ArticlesRequest, resp *ArticlesResponse) error {
+        if ctx.IsAuthenticated() {
+            // 已登录用户看到个性化内容
+            resp.Articles = getPersonalizedArticles(ctx.GetUserID())
+        } else {
+            // 未登录用户看到通用内容
+            resp.Articles = getPublicArticles()
+        }
         return nil
     }),
 })
 ```
 
-**方式二：全局强制认证**
+**优势：**
+- ✅ 最大灵活性，每个接口精确控制认证逻辑
+- ✅ 支持可选认证场景（个性化功能）
+- ✅ 代码逻辑清晰，容易调试
+
+**🔐 策略二：严格认证**
+
+适用于大部分接口都需要认证的应用
+
 ```go
 app.UseJWT()  // 全局强制认证
 
-// 登录接口需要特殊处理
+// 特殊跳过认证的接口
 app.Register(mod.Service{
     Name:     "login",
     SkipAuth: true,  // 必须跳过，否则无法登录
     Handler:  mod.MakeHandler(handleLogin),
 })
 
-// 其他接口自动认证
+// 自动认证的接口（默认）
 app.Register(mod.Service{
     Name:    "user_info",
-    Handler: mod.MakeHandler(handleUserInfo),  // 自动要求JWT
+    // 不设置SkipAuth，框架自动要求JWT认证
+    Handler: mod.MakeHandler(func(ctx *mod.Context, req *UserInfoRequest, resp *UserInfoResponse) error {
+        // 执行到这里时用户已通过JWT认证
+        userID := ctx.GetUserID()    // 保证有值
+        username := ctx.GetUsername() // 保证有值
+        return nil
+    }),
 })
 ```
 
-#### 中间件执行顺序
+**优势：**
+- ✅ 安全性高，默认所有接口都需要认证
+- ✅ 代码更简洁，减少重复的认证检查
 
-- **全局中间件**：按调用顺序执行，建议顺序为加解密 → JWT认证
-- **服务权限**：在服务处理前自动检查权限配置
+##### 配置示例
+
+```yaml
+# mod.yml
+token:
+  jwt:
+    enabled: true
+    secret_key: "your-super-secret-jwt-key"
+    issuer: "your-app-name"
+    algorithm: "HS256"
+    expire_duration: "24h"
+    refresh_expire_duration: "168h"
+
+  validation:
+    enabled: true
+    cache_strategy: "bigcache"
+    cache_key_prefix: "jwt:"
+```
+
+##### 上下文方法
+
+JWT中间件会自动解析令牌并将信息注入到上下文中：
+
+```go
+// 检查认证状态
+if ctx.IsAuthenticated() {
+    // 用户已认证
+}
+
+// 获取用户信息
+userID := ctx.GetUserID()          // 用户ID
+username := ctx.GetUsername()      // 用户名
+email := ctx.GetUserEmail()        // 邮箱
+role := ctx.GetUserRole()          // 角色
+
+// 获取JWT相关信息
+token := ctx.GetJWTToken()         // 原始JWT令牌
+claims := ctx.GetJWTClaims()       // JWT声明对象
+```
+
+---
+
+#### 加解密中间件
+
+加解密中间件提供服务级别的数据加解密功能，支持多种加密算法和灵活的配置策略。
+
+##### 启用方法
+
+```go
+app.UseEncryption()  // 启用全局加解密中间件
+```
+
+##### 工作原理
+
+1. **请求处理**：自动解密客户端发送的加密数据
+2. **签名验证**：验证请求数据的HMAC-SHA256签名
+3. **响应加密**：将服务响应数据自动加密后返回
+
+##### 多级配置
+
+加解密中间件支持三级配置，优先级从高到低：
+
+```yaml
+# mod.yml
+encryption:
+  # 全局级别
+  global:
+    enabled: true
+    algorithm: "AES256-GCM"
+    mode: "symmetric"
+
+  # 分组级别
+  groups:
+    "用户管理":
+      enabled: true
+      algorithm: "AES256-GCM"
+
+  # 服务级别（优先级最高）
+  services:
+    "create-user":
+      enabled: true
+      algorithm: "AES256-GCM"
+
+  # 白名单（跳过加解密）
+  whitelist:
+    groups:
+      - "公开服务"
+    services:
+      - "login"
+      - "register"
+```
+
+##### 使用示例
+
+```go
+app.UseEncryption()
+
+// 启用加解密的服务
+app.Register(mod.Service{
+    Name:        "create_user",
+    DisplayName: "创建用户",
+    Description: "包含敏感信息，需要加密传输",
+    Handler: mod.MakeHandler(func(ctx *mod.Context, req *CreateUserRequest, resp *CreateUserResponse) error {
+        // 请求数据已自动解密
+        // 响应数据将自动加密
+        return nil
+    }),
+    Group: "用户管理",
+})
+
+// 白名单服务（跳过加解密）
+app.Register(mod.Service{
+    Name:        "login",
+    DisplayName: "用户登录",
+    Description: "公开接口，无需加密",
+    Handler: mod.MakeHandler(func(ctx *mod.Context, req *LoginRequest, resp *LoginResponse) error {
+        // 普通的JSON请求/响应
+        return nil
+    }),
+    Group: "公开服务",
+})
+```
+
+##### 支持的算法
+
+| 算法 | 模式 | 安全性 | 性能 |
+|------|------|--------|------|
+| **AES256-GCM** | 对称加密 | 高 | 快 |
+| **ChaCha20-Poly1305** | 对称加密 | 高 | 快 |
+| **RSA-OAEP** | 非对称加密 | 很高 | 慢 |
+
+##### 配置示例
+
+```yaml
+encryption:
+  global:
+    enabled: true
+    algorithm: "AES256-GCM"
+    mode: "symmetric"
+
+  # 对称加密配置
+  symmetric:
+    algorithm: "AES256-GCM"
+    key: "dGhpcy1pcy1hLXN1cGVyLXNlY3JldC1rZXktZm9yLWVuY3J5cHRpb24="
+
+  # 签名验证配置
+  signature:
+    enabled: true
+    algorithm: "HMAC-SHA256"
+    key: "dGhpcy1pcy1hLXNpZ25hdHVyZS1rZXktZm9yLXZlcmlmaWNhdGlvbg=="
+```
 
 ### 服务权限系统
 
