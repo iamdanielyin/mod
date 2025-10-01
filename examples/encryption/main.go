@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/iamdanielyin/mod"
 )
@@ -191,24 +190,24 @@ func main() {
 		Sort:  1,
 	})
 
-	log.Println("Encryption Example Server Starting...")
-	log.Println("Available endpoints:")
-	log.Println("  POST /services/create_user     - Create user (encrypted)")
-	log.Println("  POST /services/get_user        - Get user details (encrypted)")
-	log.Println("  POST /services/get_public_user - Get public user info (not encrypted)")
-	log.Println("  GET  /services/docs            - API documentation")
-	log.Println()
-	log.Println("Encryption Configuration:")
-	log.Println("  - Symmetric encryption enabled for 'create-user' and 'get-user' services")
-	log.Println("  - 'get-public-user' service is in whitelist (no encryption)")
-	log.Println("  - HMAC-SHA256 signature verification enabled")
-	log.Println()
-	log.Println("Example usage:")
-	log.Println("  # For encrypted services, you need to encrypt the request body and add signature")
-	log.Println("  # For public services, use normal JSON requests")
-	log.Println("  curl -X POST http://localhost:8080/services/get-public-user \\")
-	log.Println("    -H 'Content-Type: application/json' \\")
-	log.Println("    -d '{\"id\":\"1\"}'")
+	app.Info("Encryption Example Server Starting...")
+	app.Info("Available endpoints:")
+	app.Info("  POST /services/create_user     - Create user (encrypted)")
+	app.Info("  POST /services/get_user        - Get user details (encrypted)")
+	app.Info("  POST /services/get_public_user - Get public user info (not encrypted)")
+	app.Info("  GET  /services/docs            - API documentation")
+	app.Info("")
+	app.Info("Encryption Configuration:")
+	app.Info("  - Symmetric encryption enabled for 'create-user' and 'get-user' services")
+	app.Info("  - 'get-public-user' service is in whitelist (no encryption)")
+	app.Info("  - HMAC-SHA256 signature verification enabled")
+	app.Info("")
+	app.Info("Example usage:")
+	app.Info("  # For encrypted services, you need to encrypt the request body and add signature")
+	app.Info("  # For public services, use normal JSON requests")
+	app.Info("  curl -X POST http://localhost:8080/services/get-public-user \\")
+	app.Info("    -H 'Content-Type: application/json' \\")
+	app.Info("    -d '{\"id\":\"1\"}'")
 
 	app.Run()
 }

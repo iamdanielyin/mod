@@ -1809,6 +1809,86 @@ func (app *App) Run(addr ...string) {
 	}
 }
 
+// GetLogger returns the logger instance
+func (app *App) GetLogger() *logrus.Logger {
+	return app.logger
+}
+
+// Logger returns the logger instance (alias for GetLogger)
+func (app *App) Logger() *logrus.Logger {
+	return app.logger
+}
+
+// Logger methods for App
+func (app *App) Debug(args ...any) {
+	if app.logger != nil {
+		app.logger.Debug(args...)
+	}
+}
+
+func (app *App) Debugf(format string, args ...any) {
+	if app.logger != nil {
+		app.logger.Debugf(format, args...)
+	}
+}
+
+func (app *App) Info(args ...any) {
+	if app.logger != nil {
+		app.logger.Info(args...)
+	}
+}
+
+func (app *App) Infof(format string, args ...any) {
+	if app.logger != nil {
+		app.logger.Infof(format, args...)
+	}
+}
+
+func (app *App) Warn(args ...any) {
+	if app.logger != nil {
+		app.logger.Warn(args...)
+	}
+}
+
+func (app *App) Warnf(format string, args ...any) {
+	if app.logger != nil {
+		app.logger.Warnf(format, args...)
+	}
+}
+
+func (app *App) Error(args ...any) {
+	if app.logger != nil {
+		app.logger.Error(args...)
+	}
+}
+
+func (app *App) Errorf(format string, args ...any) {
+	if app.logger != nil {
+		app.logger.Errorf(format, args...)
+	}
+}
+
+func (app *App) WithFields(fields logrus.Fields) *logrus.Entry {
+	if app.logger != nil {
+		return app.logger.WithFields(fields)
+	}
+	return nil
+}
+
+func (app *App) WithField(key string, value any) *logrus.Entry {
+	if app.logger != nil {
+		return app.logger.WithField(key, value)
+	}
+	return nil
+}
+
+func (app *App) WithError(err error) *logrus.Entry {
+	if app.logger != nil {
+		return app.logger.WithError(err)
+	}
+	return nil
+}
+
 // GetModConfig returns the loaded mod.yml configuration
 // Returns nil if no mod.yml was loaded
 func (app *App) GetModConfig() *ModConfig {

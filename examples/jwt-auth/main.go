@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"time"
 
 	"github.com/iamdanielyin/mod"
@@ -253,22 +252,22 @@ func main() {
 		Sort:  1,
 	})
 
-	log.Println("JWT认证示例服务器启动中...")
-	log.Println("可用端点:")
-	log.Println("  POST /services/login      - 用户登录")
-	log.Println("  POST /services/logout     - 用户登出")
-	log.Println("  POST /services/refresh    - 刷新令牌")
-	log.Println("  POST /services/user_info  - 获取用户信息")
-	log.Println("  GET  /services/docs       - API文档")
-	log.Println()
-	log.Println("测试用户:")
-	log.Println("  admin/admin123  - 管理员")
-	log.Println("  user/user123    - 普通用户")
-	log.Println()
-	log.Println("使用示例:")
-	log.Println("  curl -X POST http://localhost:8080/services/login \\")
-	log.Println("    -H 'Content-Type: application/json' \\")
-	log.Println("    -d '{\"username\":\"admin\",\"password\":\"admin123\"}'")
+	app.Info("JWT认证示例服务器启动中...")
+	app.Info("可用端点:")
+	app.Info("  POST /services/login      - 用户登录")
+	app.Info("  POST /services/logout     - 用户登出")
+	app.Info("  POST /services/refresh    - 刷新令牌")
+	app.Info("  POST /services/user_info  - 获取用户信息")
+	app.Info("  GET  /services/docs       - API文档")
+	app.Info("")
+	app.Info("测试用户:")
+	app.Info("  admin/admin123  - 管理员")
+	app.Info("  user/user123    - 普通用户")
+	app.Info("")
+	app.Info("使用示例:")
+	app.Info("  curl -X POST http://localhost:8080/services/login \\")
+	app.Info("    -H 'Content-Type: application/json' \\")
+	app.Info("    -d '{\"username\":\"admin\",\"password\":\"admin123\"}'")
 
 	app.Run()
 }
