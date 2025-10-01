@@ -4,7 +4,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/iamdanielyin/mod"
 )
 

@@ -1984,12 +1984,30 @@ func parseToken(kc *fiber.Ctx, keys []string) string {
 		}
 	}
 	var value string
-	for _, key := range keys {
-		if v := kc.Get(key); v != "" {
-			value = v
-			break
+
+	// 首先检查 Authorization 头，支持 Bearer 和非 Bearer 格式
+	authHeader := kc.Get("Authorization")
+	if authHeader != "" {
+		// 检查是否为 Bearer token 格式
+		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+			value = authHeader[7:]
+		} else {
+			// 非 Bearer 格式，直接返回
+			value = authHeader
 		}
 	}
+
+	// 如果 Authorization 头中没有找到，则检查其他配置的 keys
+	if value == "" {
+		for _, key := range keys {
+			if v := kc.Get(key); v != "" {
+				value = v
+				break
+			}
+		}
+	}
+
+	// 如果头部没有找到，则检查查询参数
 	if value == "" {
 		for _, key := range keys {
 			if v := kc.Query(key); v != "" {
@@ -1998,6 +2016,7 @@ func parseToken(kc *fiber.Ctx, keys []string) string {
 			}
 		}
 	}
+
 	if value != "" {
 		kc.Context().SetUserValue(cacheKey, value)
 	}
