@@ -100,7 +100,7 @@ func main() {
 }
 ```
 
-启动后访问 [http://localhost:8080/services/docs](http://localhost:8080/services/docs) 查看自动生成的API文档。
+启动后访问 [http://127.0.0.1:8080/services/docs](http://127.0.0.1:8080/services/docs) 查看自动生成的API文档。
 
 ---
 
@@ -913,7 +913,7 @@ logging:
   # Grafana Loki
   loki:
     enabled: true
-    url: "http://localhost:3100/loki/api/v1/push"
+    url: "http://127.0.0.1:3100/loki/api/v1/push"
     labels:
       service: "mod-app"
       environment: "production"
@@ -997,7 +997,7 @@ cache:
   # Redis
   redis:
     enabled: false
-    address: "localhost:6379"
+    address: "127.0.0.1:6379"
     password: ""
     db: 0
     pool_size: 10
@@ -1025,7 +1025,7 @@ app:
 
 # 服务器配置
 server:
-  host: "localhost"
+  host: "127.0.0.1"
   port: 8080
   read_timeout: "30s"
   write_timeout: "30s"
@@ -1206,7 +1206,7 @@ go run main.go
 
 ## 🆘 获取帮助
 
-- 📚 **API文档**: 运行任意示例后访问 http://localhost:8080/services/docs
+- 📚 **API文档**: 运行任意示例后访问 http://127.0.0.1:8080/services/docs
 - 💬 **问题反馈**: [GitHub Issues](https://github.com/iamdanielyin/mod/issues) - 报告bug、提出建议或寻求帮助
 
 ## 📄 许可证

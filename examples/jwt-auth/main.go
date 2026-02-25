@@ -265,7 +265,7 @@ func main() {
 	app.Info("  user/user123    - 普通用户")
 	app.Info("")
 	app.Info("使用示例:")
-	app.Info("  curl -X POST http://localhost:8080/services/login \\")
+	app.Info("  curl -X POST http://127.0.0.1:8080/services/login \\")
 	app.Info("    -H 'Content-Type: application/json' \\")
 	app.Info("    -d '{\"username\":\"admin\",\"password\":\"admin123\"}'")
 

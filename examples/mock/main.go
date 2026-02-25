@@ -90,6 +90,6 @@ func main() {
 	})
 
 	app.Info("Mock功能演示服务启动")
-	app.Info("访问 http://localhost:8080/services/docs 查看API文档并测试Mock功能")
+	app.Info("访问 http://127.0.0.1:8080/services/docs 查看API文档并测试Mock功能")
 	app.Run()
 }

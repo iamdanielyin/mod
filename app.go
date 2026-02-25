@@ -6,6 +6,20 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html/template"
+	"io"
+	"io/ioutil"
+	"mime"
+	"mime/multipart"
+	"net/http"
+	"os"
+	"path/filepath"
+	"reflect"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
 	osscreds "github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss/credentials"
 	"github.com/allegro/bigcache/v3"
@@ -20,19 +34,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"gopkg.in/yaml.v3"
-	"html/template"
-	"io"
-	"io/ioutil"
-	"mime"
-	"mime/multipart"
-	"net/http"
-	"os"
-	"path/filepath"
-	"reflect"
-	"sort"
-	"strconv"
-	"strings"
-	"time"
 )
 
 var validate *validator.Validate
@@ -1804,13 +1805,13 @@ func (app *App) Run(addr ...string) {
 		}
 	}
 	app.logger.Info("Starting server on " + a)
-	host := "localhost"
+	host := "127.0.0.1"
 	if strings.HasPrefix(a, "0.0.0.0") || strings.HasPrefix(a, "[::]") {
-		host = "localhost"
+		host = "127.0.0.1"
 	} else if strings.Contains(a, ":") {
 		host = strings.Split(a, ":")[0]
 		if host == "" {
-			host = "localhost"
+			host = "127.0.0.1"
 		}
 	}
 	port := strings.TrimPrefix(a, ":")

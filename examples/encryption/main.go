@@ -205,7 +205,7 @@ func main() {
 	app.Info("Example usage:")
 	app.Info("  # For encrypted services, you need to encrypt the request body and add signature")
 	app.Info("  # For public services, use normal JSON requests")
-	app.Info("  curl -X POST http://localhost:8080/services/get_public_user \\")
+	app.Info("  curl -X POST http://127.0.0.1:8080/services/get_public_user \\")
 	app.Info("    -H 'Content-Type: application/json' \\")
 	app.Info("    -d '{\"id\":\"1\"}'")
 

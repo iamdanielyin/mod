@@ -22,7 +22,7 @@ examples/
 - **功能**: 演示基本的服务注册、参数验证、错误处理
 - **包含**: 用户管理服务、参数验证、响应格式
 - **运行**: `cd basic-services && go run main.go`
-- **API文档**: http://localhost:8080/services/docs
+- **API文档**: http://127.0.0.1:8080/services/docs
 
 ### 2. JWT认证 (jwt-auth)
 - **功能**: 完整的JWT认证系统，包括登录、登出、权限控制
@@ -46,7 +46,7 @@ examples/
 - **功能**: 静态文件服务和目录浏览
 - **包含**: 多挂载点、目录浏览、自定义索引文件
 - **运行**: `cd static-files && go run main.go`
-- **访问**: http://localhost:8080/static/index.html
+- **访问**: http://127.0.0.1:8080/static/index.html
 
 ### 6. 日志功能 (logging)
 - **功能**: 多种日志输出方式
@@ -78,7 +78,7 @@ examples/
    ```
 
 4. **访问API文档**:
-   浏览器打开 http://localhost:8080/services/docs
+   浏览器打开 http://127.0.0.1:8080/services/docs
 
 ## 配置文件说明
 
@@ -111,6 +111,6 @@ examples/
 ## 技术支持
 
 如有问题，请参考：
-1. API文档: http://localhost:8080/services/docs
+1. API文档: http://127.0.0.1:8080/services/docs
 2. 配置文件注释
 3. 源代码注释
