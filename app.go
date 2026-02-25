@@ -2975,9 +2975,14 @@ func (app *App) parseStructFieldsRecursive(t reflect.Type, level int, parentPath
 			}
 		}
 
+		// 解析JSON标签，跳过忽略的字段
 		if jsonTag := field.Tag.Get("json"); jsonTag != "" {
 			parts := strings.Split(jsonTag, ",")
-			if parts[0] != "" && parts[0] != "-" {
+			if parts[0] == "-" {
+				// 字段被JSON tag标记为忽略，跳过
+				continue
+			}
+			if parts[0] != "" {
 				docField.Name = parts[0]
 			}
 		}
