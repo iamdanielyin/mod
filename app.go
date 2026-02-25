@@ -3138,15 +3138,7 @@ func (app *App) generateDocsMarkdown(docData DocData) string {
 				sb.WriteString("| 参数名 | 类型 | 来源 | 是否必须 | 描述 |\n")
 				sb.WriteString("|--------|------|------|----------|------|\n")
 				for _, field := range svc.InputFields {
-					required := "否"
-					if field.Required {
-						required = "是"
-					}
-					desc := field.Description
-					if desc == "" {
-						desc = "-"
-					}
-					sb.WriteString("| " + field.Name + " | " + field.Type + " | " + field.From + " | " + required + " | " + desc + " |\n")
+					sb.WriteString(app.formatMarkdownInputField(field, 0))
 				}
 				sb.WriteString("\n")
 			}
@@ -3187,6 +3179,31 @@ func (app *App) generateDocsMarkdown(docData DocData) string {
 	return sb.String()
 }
 
+// 格式化Markdown请求参数表格字段
+func (app *App) formatMarkdownInputField(field DocField, level int) string {
+	var sb strings.Builder
+	required := "否"
+	if field.Required {
+		required = "是"
+	}
+	desc := field.Description
+	if desc == "" {
+		desc = "-"
+	}
+	// 添加层级前缀
+	prefix := ""
+	if level > 0 {
+		prefix = strings.Repeat("&nbsp;&nbsp;", level) + "└─ "
+	}
+	sb.WriteString("| " + prefix + field.Name + " | " + field.Type + " | " + field.From + " | " + required + " | " + desc + " |\n")
+
+	for _, child := range field.Children {
+		sb.WriteString(app.formatMarkdownInputField(child, level+1))
+	}
+
+	return sb.String()
+}
+
 // 格式化Markdown表格字段
 func (app *App) formatMarkdownField(field DocField, level int) string {
 	var sb strings.Builder
@@ -3198,7 +3215,12 @@ func (app *App) formatMarkdownField(field DocField, level int) string {
 	if desc == "" {
 		desc = "-"
 	}
-	sb.WriteString("| " + field.Name + " | " + field.Type + " | " + required + " | " + desc + " |\n")
+	// 添加层级前缀
+	prefix := ""
+	if level > 0 {
+		prefix = strings.Repeat("&nbsp;&nbsp;", level) + "└─ "
+	}
+	sb.WriteString("| " + prefix + field.Name + " | " + field.Type + " | " + required + " | " + desc + " |\n")
 
 	for _, child := range field.Children {
 		sb.WriteString(app.formatMarkdownField(child, level+1))
