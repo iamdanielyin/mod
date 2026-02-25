@@ -2860,6 +2860,19 @@ func (app *App) handleDocs(c *fiber.Ctx) error {
 		docData.AppInfo.DisplayName = "API 文档"
 	}
 
+	// 检查是否请求 Markdown 格式
+	if c.Query("o") == "md" {
+		md := app.generateDocsMarkdown(docData)
+		filename := docData.AppInfo.Name
+		if filename == "" {
+			filename = "api-docs"
+		}
+		filename += ".md"
+		c.Set("Content-Type", "text/markdown; charset=utf-8")
+		c.Set("Content-Disposition", "attachment; filename="+filename)
+		return c.SendString(md)
+	}
+
 	// 生成HTML
 	html := app.generateDocsHTML(docData)
 
@@ -3085,6 +3098,113 @@ func (app *App) parseModTagFrom(modTag string) string {
 		}
 	}
 	return "query"
+}
+
+// 生成Markdown文档
+func (app *App) generateDocsMarkdown(docData DocData) string {
+	var sb strings.Builder
+
+	// 标题
+	sb.WriteString("# " + docData.AppInfo.DisplayName)
+	if docData.AppInfo.Version != "" {
+		sb.WriteString(" v" + docData.AppInfo.Version)
+	}
+	sb.WriteString("\n\n")
+
+	// 描述
+	if docData.AppInfo.Description != "" {
+		sb.WriteString(docData.AppInfo.Description + "\n\n")
+	}
+
+	// 接口列表
+	sb.WriteString("## 接口列表\n\n")
+
+	for _, group := range docData.Groups {
+		sb.WriteString("### " + group.Name + "\n\n")
+
+		for _, svc := range group.Services {
+			sb.WriteString("#### " + svc.DisplayName + "\n\n")
+			sb.WriteString("- **接口名称**: `" + svc.Name + "`\n")
+			sb.WriteString("- **请求方式**: POST\n")
+			sb.WriteString("- **路径**: `" + svc.ServicePath + "`\n")
+			if svc.Description != "" {
+				sb.WriteString("- **描述**: " + svc.Description + "\n")
+			}
+			sb.WriteString("\n")
+
+			// 请求参数
+			if len(svc.InputFields) > 0 {
+				sb.WriteString("**请求参数**\n\n")
+				sb.WriteString("| 参数名 | 类型 | 来源 | 是否必须 | 描述 |\n")
+				sb.WriteString("|--------|------|------|----------|------|\n")
+				for _, field := range svc.InputFields {
+					required := "否"
+					if field.Required {
+						required = "是"
+					}
+					desc := field.Description
+					if desc == "" {
+						desc = "-"
+					}
+					sb.WriteString("| " + field.Name + " | " + field.Type + " | " + field.From + " | " + required + " | " + desc + " |\n")
+				}
+				sb.WriteString("\n")
+			}
+
+			// 返回参数
+			if len(svc.OutputFields) > 0 || !svc.ReturnRaw {
+				sb.WriteString("**返回参数**\n\n")
+
+				if !svc.ReturnRaw {
+					// 标准返回格式
+					sb.WriteString("标准返回格式：\n\n")
+					sb.WriteString("| 参数名 | 类型 | 是否必须 | 描述 |\n")
+					sb.WriteString("|--------|------|----------|------|\n")
+					sb.WriteString("| code | int | 是 | 响应状态码，0表示成功 |\n")
+					sb.WriteString("| msg | string | 否 | 响应消息 |\n")
+					sb.WriteString("| data | object | 是 | 实际业务数据 |\n")
+					for _, field := range svc.OutputFields {
+						sb.WriteString(app.formatMarkdownField(field, 0))
+					}
+					sb.WriteString("| rid | string | 是 | 请求ID |\n")
+					sb.WriteString("| detail | string | 否 | 错误详情（仅错误时存在） |\n")
+					sb.WriteString("\n")
+				} else {
+					// 原始返回格式
+					sb.WriteString("| 参数名 | 类型 | 是否必须 | 描述 |\n")
+					sb.WriteString("|--------|------|----------|------|\n")
+					for _, field := range svc.OutputFields {
+						sb.WriteString(app.formatMarkdownField(field, 0))
+					}
+					sb.WriteString("\n")
+				}
+			}
+
+			sb.WriteString("---\n\n")
+		}
+	}
+
+	return sb.String()
+}
+
+// 格式化Markdown表格字段
+func (app *App) formatMarkdownField(field DocField, level int) string {
+	var sb strings.Builder
+	required := "否"
+	if field.Required {
+		required = "是"
+	}
+	desc := field.Description
+	if desc == "" {
+		desc = "-"
+	}
+	sb.WriteString("| " + field.Name + " | " + field.Type + " | " + required + " | " + desc + " |\n")
+
+	for _, child := range field.Children {
+		sb.WriteString(app.formatMarkdownField(child, level+1))
+	}
+
+	return sb.String()
 }
 
 // 生成HTML文档
