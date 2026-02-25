@@ -3587,6 +3587,16 @@ func (app *App) generateDocsHTML(docData DocData) string {
             border: 1px solid #d3adf7;
         }
 
+        .field-required {
+            font-size: 12px;
+            color: rgba(0, 0, 0, 0.45);
+        }
+
+        .field-required.required {
+            color: #ff4d4f;
+            font-weight: 500;
+        }
+
         .required {
             color: #ff4d4f;
             font-weight: 500;
@@ -3939,6 +3949,7 @@ func (app *App) generateDocsHTML(docData DocData) string {
                                 <tr>
                                     <th>参数名</th>
                                     <th>类型</th>
+                                    <th>是否必须</th>
                                     <th>描述</th>
                                 </tr>
                             </thead>
@@ -3951,6 +3962,7 @@ func (app *App) generateDocsHTML(docData DocData) string {
                                         </div>
                                     </td>
                                     <td><span class="field-type">int</span></td>
+                                    <td><span class="field-required required">是</span></td>
                                     <td>响应状态码，0表示成功</td>
                                 </tr>
                                 <tr>
@@ -3961,6 +3973,7 @@ func (app *App) generateDocsHTML(docData DocData) string {
                                         </div>
                                     </td>
                                     <td><span class="field-type">string</span></td>
+                                    <td><span class="field-required">否</span></td>
                                     <td>响应消息</td>
                                 </tr>
                                 <tr>
@@ -3975,6 +3988,7 @@ func (app *App) generateDocsHTML(docData DocData) string {
                                         </div>
                                     </td>
                                     <td><span class="field-type">object</span></td>
+                                    <td><span class="field-required required">是</span></td>
                                     <td>实际业务数据</td>
                                 </tr>
                                 {{range .OutputFields}}
@@ -3988,6 +4002,7 @@ func (app *App) generateDocsHTML(docData DocData) string {
                                         </div>
                                     </td>
                                     <td><span class="field-type">string</span></td>
+                                    <td><span class="field-required required">是</span></td>
                                     <td>请求ID</td>
                                 </tr>
                                 <tr style="display: none;">
@@ -3998,6 +4013,7 @@ func (app *App) generateDocsHTML(docData DocData) string {
                                         </div>
                                     </td>
                                     <td><span class="field-type">string</span></td>
+                                    <td><span class="field-required">否</span></td>
                                     <td>错误详情（仅错误时存在）</td>
                                 </tr>
                             </tbody>
@@ -4013,6 +4029,7 @@ func (app *App) generateDocsHTML(docData DocData) string {
                                 <tr>
                                     <th>参数名</th>
                                     <th>类型</th>
+                                    <th>是否必须</th>
                                     <th>描述</th>
                                 </tr>
                             </thead>
@@ -4332,6 +4349,7 @@ func (app *App) generateDocsHTML(docData DocData) string {
             </div>
         </td>
         <td><span class="field-type">{{.Type}}</span></td>
+        <td>{{if .Required}}<span class="field-required required">是</span>{{else}}<span class="field-required">否</span>{{end}}</td>
         <td>{{if .Description}}{{.Description}}{{else}}-{{end}}</td>
     </tr>
     {{range .Children}}
@@ -4357,6 +4375,7 @@ func (app *App) generateDocsHTML(docData DocData) string {
             </div>
         </td>
         <td><span class="field-type">{{.Type}}</span></td>
+        <td>{{if .Required}}<span class="field-required required">是</span>{{else}}<span class="field-required">否</span>{{end}}</td>
         <td>{{if .Description}}{{.Description}}{{else}}-{{end}}</td>
     </tr>
     {{range .Children}}
@@ -4383,6 +4402,7 @@ func (app *App) generateDocsHTML(docData DocData) string {
             </div>
         </td>
         <td><span class="field-type">{{.Type}}</span></td>
+        <td>{{if .Required}}<span class="field-required required">是</span>{{else}}<span class="field-required">否</span>{{end}}</td>
         <td>{{if .Description}}{{.Description}}{{else}}-{{end}}</td>
     </tr>
     {{range .Children}}
