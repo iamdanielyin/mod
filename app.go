@@ -1804,6 +1804,21 @@ func (app *App) Run(addr ...string) {
 		}
 	}
 	app.logger.Info("Starting server on " + a)
+	host := "localhost"
+	if strings.HasPrefix(a, "0.0.0.0") || strings.HasPrefix(a, "[::]") {
+		host = "localhost"
+	} else if strings.Contains(a, ":") {
+		host = strings.Split(a, ":")[0]
+		if host == "" {
+			host = "localhost"
+		}
+	}
+	port := strings.TrimPrefix(a, ":")
+	if port == "" {
+		port = "8080"
+	}
+	docsURL := fmt.Sprintf("http://%s:%s/services/docs", host, port)
+	app.logger.Info("API文档: " + docsURL)
 	if err := app.Listen(a); err != nil {
 		panic(err)
 	}
